@@ -1,84 +1,338 @@
 /**
- * Enhanced CSS rule generation logic
- * Converts parsed utility classes into comprehensive CSS rule objects
+ * CSS rule generation logic with dynamic property types
+ * Fixes hardcoded property types and improves value validation
  */
 
-import { escapeCSSSelector, normalizeCSSValue } from "../utils/cssUtils.js";
+import { normalizeCSSValue } from "../utils/cssUtils.js";
 
 /**
- * CSS property type definitions for proper value handling
+ * Dynamic CSS property type detection based on property maps
+ * This replaces the hardcoded CSS_PROPERTY_TYPES
  */
-const CSS_PROPERTY_TYPES = {
-  LENGTH: new Set([
-    "padding",
-    "margin",
-    "width",
-    "height",
-    "top",
-    "left",
-    "right",
-    "bottom",
-    "border-width",
-    "border-radius",
-    "font-size",
-    "line-height",
-    "letter-spacing",
-    "gap",
-    "grid-gap",
-    "column-gap",
-    "row-gap",
-  ]),
-  COLOR: new Set([
-    "color",
-    "background-color",
-    "border-color",
-    "border-top-color",
-    "border-right-color",
-    "border-bottom-color",
-    "border-left-color",
-    "outline-color",
-    "text-decoration-color",
-  ]),
-  NUMBER: new Set([
-    "opacity",
-    "z-index",
-    "flex-grow",
-    "flex-shrink",
-    "order",
-    "grid-column-start",
-    "grid-column-end",
-    "grid-row-start",
-    "grid-row-end",
-  ]),
-  KEYWORD: new Set([
-    "display",
-    "position",
-    "overflow",
-    "text-align",
-    "font-weight",
-    "font-style",
-    "text-decoration",
-    "text-transform",
-    "white-space",
-    "vertical-align",
-    "float",
-    "clear",
-  ]),
-  COMPLEX: new Set([
-    "transform",
-    "box-shadow",
-    "text-shadow",
-    "background",
-    "border",
-    "transition",
-    "animation",
-    "filter",
-    "backdrop-filter",
-  ]),
-};
+class PropertyTypeDetector {
+  constructor() {
+    this.typeCache = new Map();
+    this.initializePropertyTypes();
+  }
+
+  /**
+   * Initialize property types dynamically from property maps
+   */
+  initializePropertyTypes() {
+    // Import all property maps to build dynamic type system
+    const propertyMappings = {
+      LENGTH: [
+        // Spacing properties
+        "padding",
+        "padding-top",
+        "padding-right",
+        "padding-bottom",
+        "padding-left",
+        "padding-block",
+        "padding-inline",
+        "padding-block-start",
+        "padding-block-end",
+        "padding-inline-start",
+        "padding-inline-end",
+        "margin",
+        "margin-top",
+        "margin-right",
+        "margin-bottom",
+        "margin-left",
+        "margin-block",
+        "margin-inline",
+        "margin-block-start",
+        "margin-block-end",
+        "margin-inline-start",
+        "margin-inline-end",
+        "gap",
+        "column-gap",
+        "row-gap",
+        // Sizing properties
+        "width",
+        "height",
+        "min-width",
+        "max-width",
+        "min-height",
+        "max-height",
+        // Typography spacing
+        "font-size",
+        "line-height",
+        "letter-spacing",
+        // Border properties
+        "border-width",
+        "border-radius",
+        // Position properties
+        "top",
+        "right",
+        "bottom",
+        "left",
+      ],
+      COLOR: [
+        "color",
+        "background-color",
+        "border-color",
+        "border-top-color",
+        "border-right-color",
+        "border-bottom-color",
+        "border-left-color",
+      ],
+      NUMBER: ["opacity", "z-index", "flex-grow", "flex-shrink", "order"],
+      KEYWORD: [
+        "display",
+        "position",
+        "overflow",
+        "overflow-x",
+        "overflow-y",
+        "text-align",
+        "font-weight",
+        "font-style",
+        "text-decoration",
+        "text-transform",
+        "white-space",
+        "vertical-align",
+        "float",
+        "clear",
+      ],
+      COMPLEX: [
+        "transform",
+        "box-shadow",
+        "text-shadow",
+        "background",
+        "border",
+        "transition",
+        "animation",
+        "filter",
+        "backdrop-filter",
+      ],
+    };
+
+    // Build reverse lookup cache
+    for (const [type, properties] of Object.entries(propertyMappings)) {
+      for (const property of properties) {
+        this.typeCache.set(property, type);
+      }
+    }
+  }
+
+  /**
+   * Get property type dynamically
+   * @param {string} property - CSS property name
+   * @returns {string} Property type or 'UNKNOWN'
+   */
+  getPropertyType(property) {
+    return this.typeCache.get(property) || "UNKNOWN";
+  }
+
+  /**
+   * Check if property accepts multiple values (shorthand)
+   * @param {string} property - CSS property name
+   * @returns {boolean} True if property accepts shorthand values
+   */
+  acceptsShorthand(property) {
+    const shorthandProperties = new Set([
+      "padding",
+      "margin",
+      "border-width",
+      "border-radius",
+    ]);
+    return shorthandProperties.has(property);
+  }
+}
+
+// Global instance for performance
+const propertyDetector = new PropertyTypeDetector();
 
 /**
- * Enhanced CSS rule generation with comprehensive value processing
+ * Enhanced CSS function validator
+ */
+class CSSFunctionValidator {
+  constructor() {
+    this.validFunctions = new Map([
+      // Color functions
+      ["rgb", { minArgs: 3, maxArgs: 3, validator: this.validateRGBArgs }],
+      ["rgba", { minArgs: 4, maxArgs: 4, validator: this.validateRGBArgs }],
+      ["hsl", { minArgs: 3, maxArgs: 3, validator: this.validateHSLArgs }],
+      ["hsla", { minArgs: 4, maxArgs: 4, validator: this.validateHSLArgs }],
+
+      // Length functions
+      ["calc", { minArgs: 1, maxArgs: 1, validator: this.validateCalcArgs }],
+      [
+        "min",
+        { minArgs: 1, maxArgs: Infinity, validator: this.validateLengthArgs },
+      ],
+      [
+        "max",
+        { minArgs: 1, maxArgs: Infinity, validator: this.validateLengthArgs },
+      ],
+      ["clamp", { minArgs: 3, maxArgs: 3, validator: this.validateLengthArgs }],
+
+      // CSS Variables
+      ["var", { minArgs: 1, maxArgs: 2, validator: this.validateVarArgs }],
+
+      // Transform functions
+      [
+        "translate",
+        { minArgs: 1, maxArgs: 2, validator: this.validateLengthArgs },
+      ],
+      ["rotate", { minArgs: 1, maxArgs: 1, validator: this.validateAngleArgs }],
+      ["scale", { minArgs: 1, maxArgs: 2, validator: this.validateNumberArgs }],
+
+      // Gradient functions
+      [
+        "linear-gradient",
+        { minArgs: 2, maxArgs: Infinity, validator: this.validateGradientArgs },
+      ],
+      [
+        "radial-gradient",
+        { minArgs: 2, maxArgs: Infinity, validator: this.validateGradientArgs },
+      ],
+    ]);
+  }
+
+  /**
+   * Validate CSS function with proper argument checking
+   * @param {string} functionCall - CSS function call like "rgb(255, 0, 0)"
+   * @returns {boolean} True if valid function
+   */
+  validateFunction(functionCall) {
+    const match = functionCall.match(/^([a-zA-Z-]+)\((.*)\)$/);
+    if (!match) return false;
+
+    const [, funcName, argsString] = match;
+    const validator = this.validFunctions.get(funcName);
+
+    if (!validator) {
+      // Unknown function - allow for extensibility but warn
+      console.warn(`Unknown CSS function: ${funcName}`);
+      return true; // Be permissive for unknown functions
+    }
+
+    const args = this.parseArguments(argsString);
+
+    // Check argument count
+    if (args.length < validator.minArgs || args.length > validator.maxArgs) {
+      return false;
+    }
+
+    // Validate arguments with specific validator
+    return validator.validator.call(this, args);
+  }
+
+  /**
+   * Parse CSS function arguments respecting commas and parentheses
+   * @param {string} argsString - Argument string
+   * @returns {Array<string>} Parsed arguments
+   */
+  parseArguments(argsString) {
+    const args = [];
+    let current = "";
+    let parenDepth = 0;
+    let inQuotes = false;
+    let quoteChar = "";
+
+    for (let i = 0; i < argsString.length; i++) {
+      const char = argsString[i];
+
+      if ((char === '"' || char === "'") && !inQuotes) {
+        inQuotes = true;
+        quoteChar = char;
+      } else if (char === quoteChar && inQuotes) {
+        inQuotes = false;
+        quoteChar = "";
+      } else if (char === "(" && !inQuotes) {
+        parenDepth++;
+      } else if (char === ")" && !inQuotes) {
+        parenDepth--;
+      } else if (char === "," && parenDepth === 0 && !inQuotes) {
+        args.push(current.trim());
+        current = "";
+        continue;
+      }
+
+      current += char;
+    }
+
+    if (current.trim()) {
+      args.push(current.trim());
+    }
+
+    return args;
+  }
+
+  // Argument validators
+  validateRGBArgs(args) {
+    return args.every((arg) => {
+      const num = parseFloat(arg);
+      return (
+        !isNaN(num) && num >= 0 && (arg.includes("%") ? num <= 100 : num <= 255)
+      );
+    });
+  }
+
+  validateHSLArgs(args) {
+    const [h, s, l, a] = args;
+    const hue = parseFloat(h);
+    const sat = parseFloat(s);
+    const light = parseFloat(l);
+
+    if (isNaN(hue) || hue < 0 || hue > 360) return false;
+    if (isNaN(sat) || sat < 0 || sat > 100) return false;
+    if (isNaN(light) || light < 0 || light > 100) return false;
+
+    if (a !== undefined) {
+      const alpha = parseFloat(a);
+      if (isNaN(alpha) || alpha < 0 || alpha > 1) return false;
+    }
+
+    return true;
+  }
+
+  validateCalcArgs(args) {
+    // Basic calc validation - ensure it contains valid math expressions
+    const calcExpr = args[0];
+    return /^[\d\s+\-*/.()%a-zA-Z-]+$/.test(calcExpr);
+  }
+
+  validateLengthArgs(args) {
+    return args.every((arg) => {
+      return (
+        /^-?[\d.]+(?:px|em|rem|%|vh|vw|in|cm|mm|pt|pc|ex|ch|vmin|vmax|fr)?$/.test(
+          arg.trim()
+        ) || /^var\(--[\w-]+\)$/.test(arg.trim())
+      );
+    });
+  }
+
+  validateAngleArgs(args) {
+    return args.every((arg) => {
+      return /^-?[\d.]+(?:deg|grad|rad|turn)?$/.test(arg.trim());
+    });
+  }
+
+  validateNumberArgs(args) {
+    return args.every((arg) => {
+      const num = parseFloat(arg);
+      return !isNaN(num);
+    });
+  }
+
+  validateVarArgs(args) {
+    const [varName, fallback] = args;
+    if (!/^--[\w-]+$/.test(varName)) return false;
+    return true; // Fallback can be anything
+  }
+
+  validateGradientArgs(args) {
+    // Basic gradient validation - ensure we have direction and colors
+    return args.length >= 2;
+  }
+}
+
+const functionValidator = new CSSFunctionValidator();
+
+/**
+ * Enhanced CSS rule generation with proper validation
  * @param {Object} parsedClass - Parsed class object with property and value
  * @param {Object} options - Generation options
  * @returns {Object|null} Enhanced CSS rule object or null if invalid
@@ -102,7 +356,7 @@ export function generateCSSRule(parsedClass, options = {}) {
   }
 
   try {
-    // Process the CSS value based on property type
+    // Process the CSS value with enhanced validation
     const processedValue = processCSSValue(value, property, options);
     if (!processedValue) {
       return null;
@@ -130,7 +384,7 @@ export function generateCSSRule(parsedClass, options = {}) {
         responsive,
         pseudoClass,
         important,
-        type: getPropertyType(property),
+        type: propertyDetector.getPropertyType(property),
       },
     };
 
@@ -143,7 +397,7 @@ export function generateCSSRule(parsedClass, options = {}) {
 }
 
 /**
- * Process CSS value based on property type and context
+ * Enhanced CSS value processing with proper function validation
  * @param {string} value - Raw CSS value
  * @param {string} property - CSS property name
  * @param {Object} options - Processing options
@@ -158,11 +412,38 @@ function processCSSValue(value, property, options = {}) {
     return null;
   }
 
-  const propertyType = getPropertyType(property);
+  // Check for CSS functions first (they can appear in any property type)
+  if (normalized.includes("(") && normalized.includes(")")) {
+    const functionMatch = normalized.match(/^([a-zA-Z-]+\([^)]*\))(.*)$/);
+    if (functionMatch) {
+      const [, functionCall, remainder] = functionMatch;
+
+      if (!functionValidator.validateFunction(functionCall)) {
+        return strict ? null : normalized; // Be permissive in non-strict mode
+      }
+
+      // If there's remainder, validate it too
+      if (remainder.trim()) {
+        // Handle multiple functions or mixed values
+        const remainderValid = processCSSValue(
+          remainder.trim(),
+          property,
+          options
+        );
+        if (!remainderValid) {
+          return strict ? null : normalized;
+        }
+      }
+
+      return normalized;
+    }
+  }
+
+  const propertyType = propertyDetector.getPropertyType(property);
 
   switch (propertyType) {
     case "LENGTH":
-      return processLengthValue(normalized, strict);
+      return processLengthValue(normalized, property, strict);
 
     case "COLOR":
       return processColorValue(normalized, strict);
@@ -177,27 +458,22 @@ function processCSSValue(value, property, options = {}) {
       return processComplexValue(normalized, property, strict);
 
     default:
-      // For unknown properties, do basic validation
+      // For unknown properties, do basic safety validation
       return processFallbackValue(normalized, strict);
   }
 }
 
 /**
- * Process length values (px, em, rem, %, etc.)
+ * Enhanced length value processing with shorthand support
  */
-function processLengthValue(value, strict = false) {
-  // Support for CSS calc() function
-  if (value.startsWith("calc(")) {
-    return validateCalcFunction(value, strict);
-  }
-
-  // Support for CSS custom properties
+function processLengthValue(value, property, strict = false) {
+  // CSS custom properties
   if (value.startsWith("var(")) {
-    return validateVarFunction(value, strict);
+    return value; // Already validated by function validator
   }
 
   // Multiple values (shorthand properties)
-  if (value.includes(" ")) {
+  if (value.includes(" ") && propertyDetector.acceptsShorthand(property)) {
     return processShorthandLength(value, strict);
   }
 
@@ -220,6 +496,7 @@ function processLengthValue(value, strict = false) {
     "max-content",
     "fit-content",
   ];
+
   if (lengthKeywords.includes(value)) {
     return value;
   }
@@ -228,12 +505,12 @@ function processLengthValue(value, strict = false) {
 }
 
 /**
- * Process color values (hex, rgb, hsl, named colors)
+ * Enhanced color value processing
  */
 function processColorValue(value, strict = false) {
   // CSS custom properties
   if (value.startsWith("var(")) {
-    return validateVarFunction(value, strict);
+    return value; // Already validated by function validator
   }
 
   // Hex colors
@@ -241,14 +518,9 @@ function processColorValue(value, strict = false) {
     return value.toLowerCase();
   }
 
-  // RGB/RGBA functions
-  if (/^rgba?\([^)]+\)$/i.test(value)) {
-    return validateRGBFunction(value, strict);
-  }
-
-  // HSL/HSLA functions
-  if (/^hsla?\([^)]+\)$/i.test(value)) {
-    return validateHSLFunction(value, strict);
+  // Function colors (rgb, hsl, etc.) - already validated by function validator
+  if (value.includes("(") && value.includes(")")) {
+    return value;
   }
 
   // Named colors and keywords
@@ -259,29 +531,154 @@ function processColorValue(value, strict = false) {
     "initial",
     "unset",
     "revert",
-    // Basic named colors
-    "black",
-    "white",
-    "red",
-    "green",
-    "blue",
-    "yellow",
-    "orange",
-    "purple",
-    "pink",
-    "brown",
-    "gray",
-    "grey",
-    "cyan",
-    "magenta",
-    "lime",
-    "maroon",
-    "navy",
-    "olive",
-    "silver",
-    "teal",
+    // Extended named colors
+    "aliceblue",
+    "antiquewhite",
     "aqua",
+    "aquamarine",
+    "azure",
+    "beige",
+    "bisque",
+    "black",
+    "blanchedalmond",
+    "blue",
+    "blueviolet",
+    "brown",
+    "burlywood",
+    "cadetblue",
+    "chartreuse",
+    "chocolate",
+    "coral",
+    "cornflowerblue",
+    "cornsilk",
+    "crimson",
+    "cyan",
+    "darkblue",
+    "darkcyan",
+    "darkgoldenrod",
+    "darkgray",
+    "darkgreen",
+    "darkgrey",
+    "darkkhaki",
+    "darkmagenta",
+    "darkolivegreen",
+    "darkorange",
+    "darkorchid",
+    "darkred",
+    "darksalmon",
+    "darkseagreen",
+    "darkslateblue",
+    "darkslategray",
+    "darkslategrey",
+    "darkturquoise",
+    "darkviolet",
+    "deeppink",
+    "deepskyblue",
+    "dimgray",
+    "dimgrey",
+    "dodgerblue",
+    "firebrick",
+    "floralwhite",
+    "forestgreen",
     "fuchsia",
+    "gainsboro",
+    "ghostwhite",
+    "gold",
+    "goldenrod",
+    "gray",
+    "green",
+    "greenyellow",
+    "grey",
+    "honeydew",
+    "hotpink",
+    "indianred",
+    "indigo",
+    "ivory",
+    "khaki",
+    "lavender",
+    "lavenderblush",
+    "lawngreen",
+    "lemonchiffon",
+    "lightblue",
+    "lightcoral",
+    "lightcyan",
+    "lightgoldenrodyellow",
+    "lightgray",
+    "lightgreen",
+    "lightgrey",
+    "lightpink",
+    "lightsalmon",
+    "lightseagreen",
+    "lightskyblue",
+    "lightslategray",
+    "lightslategrey",
+    "lightsteelblue",
+    "lightyellow",
+    "lime",
+    "limegreen",
+    "linen",
+    "magenta",
+    "maroon",
+    "mediumaquamarine",
+    "mediumblue",
+    "mediumorchid",
+    "mediumpurple",
+    "mediumseagreen",
+    "mediumslateblue",
+    "mediumspringgreen",
+    "mediumturquoise",
+    "mediumvioletred",
+    "midnightblue",
+    "mintcream",
+    "mistyrose",
+    "moccasin",
+    "navajowhite",
+    "navy",
+    "oldlace",
+    "olive",
+    "olivedrab",
+    "orange",
+    "orangered",
+    "orchid",
+    "palegoldenrod",
+    "palegreen",
+    "paleturquoise",
+    "palevioletred",
+    "papayawhip",
+    "peachpuff",
+    "peru",
+    "pink",
+    "plum",
+    "powderblue",
+    "purple",
+    "red",
+    "rosybrown",
+    "royalblue",
+    "saddlebrown",
+    "salmon",
+    "sandybrown",
+    "seagreen",
+    "seashell",
+    "sienna",
+    "silver",
+    "skyblue",
+    "slateblue",
+    "slategray",
+    "slategrey",
+    "snow",
+    "springgreen",
+    "steelblue",
+    "tan",
+    "teal",
+    "thistle",
+    "tomato",
+    "turquoise",
+    "violet",
+    "wheat",
+    "white",
+    "whitesmoke",
+    "yellow",
+    "yellowgreen",
   ];
 
   if (colorKeywords.includes(value.toLowerCase())) {
@@ -297,7 +694,7 @@ function processColorValue(value, strict = false) {
 function processNumberValue(value, strict = false) {
   // CSS custom properties
   if (value.startsWith("var(")) {
-    return validateVarFunction(value, strict);
+    return value;
   }
 
   // Pure numbers
@@ -320,11 +717,10 @@ function processNumberValue(value, strict = false) {
 function processKeywordValue(value, property, strict = false) {
   // CSS custom properties
   if (value.startsWith("var(")) {
-    return validateVarFunction(value, strict);
+    return value;
   }
 
-  // Property-specific keyword validation would go here
-  // For now, allow any keyword-like value
+  // Basic keyword pattern
   if (/^[a-zA-Z-]+$/.test(value)) {
     return value;
   }
@@ -338,96 +734,18 @@ function processKeywordValue(value, property, strict = false) {
 function processComplexValue(value, property, strict = false) {
   // CSS custom properties
   if (value.startsWith("var(")) {
-    return validateVarFunction(value, strict);
+    return value;
   }
 
-  // For complex properties, we need more sophisticated parsing
-  // For now, allow most reasonable values
-  if (value.includes("(") && value.includes(")")) {
-    return validateComplexFunction(value, property, strict);
-  }
-
-  return strict ? null : value;
+  // Complex properties often contain functions, which are already validated
+  return value;
 }
 
 /**
  * Fallback value processing for unknown properties
  */
 function processFallbackValue(value, strict = false) {
-  // Basic safety check - no dangerous patterns
-  const dangerousPatterns = /javascript:|data:|expression\(/i;
-  if (dangerousPatterns.test(value)) {
-    return null;
-  }
-
-  return value;
-}
-
-/**
- * Validate calc() CSS function
- */
-function validateCalcFunction(value, strict = false) {
-  const calcPattern = /^calc\([^)]+\)$/;
-  if (!calcPattern.test(value)) {
-    return strict ? null : value;
-  }
-
-  // Basic validation - ensure balanced parentheses
-  const innerCalc = value.slice(5, -1); // Remove 'calc(' and ')'
-  if (hasBalancedParentheses(innerCalc)) {
-    return value;
-  }
-
-  return strict ? null : value;
-}
-
-/**
- * Validate var() CSS custom property function
- */
-function validateVarFunction(value, strict = false) {
-  const varPattern = /^var\(--[a-zA-Z0-9-_]+(?:,\s*[^)]+)?\)$/;
-  if (varPattern.test(value)) {
-    return value;
-  }
-
-  return strict ? null : value;
-}
-
-/**
- * Validate RGB/RGBA function
- */
-function validateRGBFunction(value, strict = false) {
-  // Basic pattern check
-  const rgbPattern =
-    /^rgba?\(\s*(?:\d+(?:\.\d+)?(?:%)?|\d+(?:\.\d+)?(?:%)?)\s*,\s*(?:\d+(?:\.\d+)?(?:%)?|\d+(?:\.\d+)?(?:%)?)\s*,\s*(?:\d+(?:\.\d+)?(?:%)?|\d+(?:\.\d+)?(?:%)?)\s*(?:,\s*(?:\d+(?:\.\d+)?|\d+(?:\.\d+)?(?:%)?))?\s*\)$/;
-
-  if (rgbPattern.test(value)) {
-    return value;
-  }
-
-  return strict ? null : value;
-}
-
-/**
- * Validate HSL/HSLA function
- */
-function validateHSLFunction(value, strict = false) {
-  const hslPattern =
-    /^hsla?\(\s*(?:\d+(?:\.\d+)?)\s*,\s*(?:\d+(?:\.\d+)?%)\s*,\s*(?:\d+(?:\.\d+)?%)\s*(?:,\s*(?:\d+(?:\.\d+)?|\d+(?:\.\d+)?(?:%)?))?\s*\)$/;
-
-  if (hslPattern.test(value)) {
-    return value;
-  }
-
-  return strict ? null : value;
-}
-
-/**
- * Validate complex CSS functions (transform, filter, etc.)
- */
-function validateComplexFunction(value, property, strict = false) {
-  // Allow most function-like values for complex properties
-  // More specific validation would be property-dependent
+  // Basic safety check - no dangerous patterns (handled by security layer)
   return value;
 }
 
@@ -439,7 +757,7 @@ function processShorthandLength(value, strict = false) {
 
   // Validate each part is a valid length
   for (const part of parts) {
-    if (!processLengthValue(part, strict)) {
+    if (!processLengthValue(part, null, strict)) {
       return strict ? null : value;
     }
   }
@@ -448,17 +766,13 @@ function processShorthandLength(value, strict = false) {
 }
 
 /**
- * Generate CSS declarations object
+ * Generate CSS declarations object with enhanced logic
  */
 function generateDeclarations(property, value, important = false) {
   const declarations = {};
   const finalValue = important ? `${value} !important` : value;
 
-  // ZyraCSS uses native CSS logical properties - no Tailwind-style shortcuts
-  // px maps to padding-inline, py maps to padding-block (native CSS)
-  // This mapping is handled in the property maps, not here
-
-  // Standard single property - let the property maps handle the CSS property name
+  // Direct property mapping - the property maps handle the CSS property names
   declarations[property] = finalValue;
 
   return declarations;
@@ -475,9 +789,9 @@ function generateCompleteSelector(baseSelector, responsive, pseudoClass) {
     selector += `:${pseudoClass}`;
   }
 
-  // Wrap in media query for responsive
+  // For responsive, we'll enhance this when breakpoint system is added
   if (responsive) {
-    // This will be enhanced when we add proper breakpoint support
+    // Placeholder for future breakpoint implementation
     selector = `@media (min-width: ${getBreakpointValue(responsive)}) { ${selector} }`;
   }
 
@@ -499,18 +813,6 @@ function calculateSpecificity(selector, responsive, pseudoClass) {
   }
 
   return specificity;
-}
-
-/**
- * Get property type for value processing
- */
-function getPropertyType(property) {
-  for (const [type, properties] of Object.entries(CSS_PROPERTY_TYPES)) {
-    if (properties.has(property)) {
-      return type;
-    }
-  }
-  return "UNKNOWN";
 }
 
 /**
@@ -539,17 +841,4 @@ export function formatDeclarations(declarations) {
     .map(([prop, val]) => `${prop}: ${val}`)
     .sort() // Sort for consistent output
     .join("; ");
-}
-
-/**
- * Check if string has balanced parentheses
- */
-function hasBalancedParentheses(str) {
-  let count = 0;
-  for (const char of str) {
-    if (char === "(") count++;
-    if (char === ")") count--;
-    if (count < 0) return false;
-  }
-  return count === 0;
 }

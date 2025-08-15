@@ -4,10 +4,6 @@
  */
 
 import { parseClass } from "./classParser.js";
-import {
-  extractClassesFromHTML,
-  extractClassesFromHTMLArray,
-} from "./htmlExtractor.js";
 
 /**
  * Parse multiple classes from various input types
