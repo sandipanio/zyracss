@@ -1,0 +1,60 @@
+{
+  "name": "zyracss",
+  "version": "0.1.0",
+  "description": "A utility-first CSS generator that supports arbitrary values",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "zyracss": "bin/zyracss"
+  },
+  "exports": {
+    ".": {
+      "import": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "node cli/index.js build",
+    "dev": "node cli/index.js build --watch",
+    "test": "node --test test/**/*.test.js",
+    "test:watch": "node --test --watch test/**/*.test.js",
+    "lint": "eslint src/ cli/ test/",
+    "format": "prettier --write .",
+    "prepublishOnly": "npm run test && npm run lint"
+  },
+  "keywords": [
+    "css",
+    "utility-first",
+    "css-generator",
+    "zyracss",
+    "arbitrary-values",
+    "atomic-css"
+  ],
+  "author": "Sandipan Mukherjee",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zyracss/zyracss.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zyracss/zyracss/issues"
+  },
+  "homepage": "https://github.com/zyracss/zyracss#readme",
+  "dependencies": {
+    "commander": "^14.0.0",
+    "glob": "^11.0.3"
+  },
+  "devDependencies": {
+    "eslint": "^9.33.0",
+    "prettier": "^3.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "src/",
+    "cli/",
+    "bin/",
+    "README.md"
+  ]
+}
