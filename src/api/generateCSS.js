@@ -5,15 +5,15 @@
 
 import { parseClasses } from "../core/parser/index.js";
 import { extractClassesFromHTMLArray } from "../core/parser/htmlExtractor.js";
-import { generateCSS as generateCSSCore } from "../core/generator/index.js";
+import { generateCSS as generateCSSInternal } from "../core/generator/index.js";
 import { sanitizeInputArray } from "../core/security/index.js";
 import { now } from "../core/utils/index.js";
 import {
   ZyraResult,
   ErrorFactory,
   CSSGenerationResult,
-} from "../core/errors/errorSystem.js";
-import { withGenerationCache, globalCache } from "../core/cache/cacheSystem.js";
+} from "../core/errors/index.js";
+import { withGenerationCache, globalCache } from "../core/cache/index.js";
 
 /**
  * Enhanced CSS generation with comprehensive error handling and caching
@@ -238,7 +238,7 @@ async function generateCSSWithCaching(parsedClasses, options, startTime) {
     }
 
     // Generate CSS (expensive operation)
-    const result = generateCSSCore(parsedClasses, options);
+    const result = generateCSSInternal(parsedClasses, options);
 
     if (!result || !result.css) {
       return ZyraResult.error(

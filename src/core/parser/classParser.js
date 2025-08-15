@@ -13,8 +13,8 @@ import {
   ErrorFactory,
   ValidationResult,
   ParseResult,
-} from "../errors/errorSystem.js";
-import { withParseCache } from "../cache/cacheSystem.js";
+} from "../errors/index.js";
+import { withParseCache } from "../cache/index.js";
 
 /**
  * Enhanced class parser with consistent error handling
