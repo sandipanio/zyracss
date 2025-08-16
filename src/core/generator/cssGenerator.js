@@ -1,9 +1,14 @@
 /**
  * CSS rule generation logic with dynamic property types
- * Fixes hardcoded property types and improves value validation
+ * Fixes hardcoded property types and improves value validation with safe regex execution
  */
 
 import { normalizeCSSValue } from "../utils/cssUtils.js";
+import {
+  syncSafeRegexTest,
+  safeRegexMatch,
+  REGEX_TIMEOUTS,
+} from "../security/safeRegex.js";
 
 /**
  * Dynamic CSS property type detection based on property maps
@@ -191,15 +196,21 @@ class CSSFunctionValidator {
   }
 
   /**
-   * Validate CSS function with proper argument checking
+   * Validate CSS function with proper argument checking and safe regex
    * @param {string} functionCall - CSS function call like "rgb(255, 0, 0)"
    * @returns {boolean} True if valid function
    */
   validateFunction(functionCall) {
-    const match = functionCall.match(/^([a-zA-Z-]+)\((.*)\)$/);
-    if (!match) return false;
+    const matchResult = safeRegexMatch(
+      /^([a-zA-Z-]+)\((.*)\)$/,
+      functionCall,
+      REGEX_TIMEOUTS.FAST
+    );
+    if (!matchResult.matches || matchResult.error || matchResult.timedOut) {
+      return false;
+    }
 
-    const [, funcName, argsString] = match;
+    const [, funcName, argsString] = matchResult.matches;
     const validator = this.validFunctions.get(funcName);
 
     if (!validator) {
@@ -289,17 +300,32 @@ class CSSFunctionValidator {
   }
 
   validateCalcArgs(args) {
-    // Basic calc validation - ensure it contains valid math expressions
+    // Basic calc validation - ensure it contains valid math expressions with safe regex
     const calcExpr = args[0];
-    return /^[\d\s+\-*/.()%a-zA-Z-]+$/.test(calcExpr);
+    const testResult = syncSafeRegexTest(
+      /^[\d\s+\-*/.()%a-zA-Z-]+$/,
+      calcExpr,
+      { timeout: REGEX_TIMEOUTS.FAST }
+    );
+    return (
+      testResult.result === true && !testResult.error && !testResult.timedOut
+    );
   }
 
   validateLengthArgs(args) {
     return args.every((arg) => {
+      const lengthTest = syncSafeRegexTest(
+        /^-?[\d.]+(?:px|em|rem|%|vh|vw|in|cm|mm|pt|pc|ex|ch|vmin|vmax|fr)?$/,
+        arg.trim(),
+        { timeout: REGEX_TIMEOUTS.FAST }
+      );
+      const varTest = syncSafeRegexTest(/^var\(--[\w-]+\)$/, arg.trim(), {
+        timeout: REGEX_TIMEOUTS.FAST,
+      });
+
       return (
-        /^-?[\d.]+(?:px|em|rem|%|vh|vw|in|cm|mm|pt|pc|ex|ch|vmin|vmax|fr)?$/.test(
-          arg.trim()
-        ) || /^var\(--[\w-]+\)$/.test(arg.trim())
+        (lengthTest.result && !lengthTest.error) ||
+        (varTest.result && !varTest.error)
       );
     });
   }

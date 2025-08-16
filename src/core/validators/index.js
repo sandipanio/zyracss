@@ -14,10 +14,8 @@ export {
 // Value validation
 export {
   validateValue,
-  validateValueForType,
   validateMultipleValues,
   isValidCSSFunction,
-  isSafeValue,
 } from "./valueValidator.js";
 
 // Class validation

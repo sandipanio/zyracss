@@ -1,58 +1,60 @@
 /**
- * API module - Main coordination for the programmatic API
- * Clean re-exports and minimal coordination
+ * API module - Tree-shakable exports for optimal bundle size
+ * Each export can be imported individually to minimize bundle size
  */
 
-// Core API functions
-export {
-  generateCSS,
-  generateCSSFromHTML,
-  generateCSSFromClasses,
-} from "./generateCSS.js";
+// ============================================================================
+// CORE API - Most commonly used functions
+// ============================================================================
 
-// Incremental engine
-export { createEngine } from "./createEngine.js";
+// Primary CSS generation function
+export { generateCSS } from "./core/generateCSS.js";
 
-// Convenience methods
-export {
-  generateMinifiedCSS,
-  generateCSSWithDebug,
-  validateClassNames,
-  quickCSS,
-  getCSSString,
-  areValidClasses,
-  estimateCSSSize,
-  generateCSSWithProgress,
-} from "./convenienceMethods.js";
+// ============================================================================
+// CONVENIENCE METHODS - Tree-shakable utilities
+// ============================================================================
 
-// Input processors
-export {
-  processHTMLInput,
-  validateHTMLContent,
-  analyzeClassUsage,
-  cleanHTML,
-} from "./htmlProcessor.js";
+// Individual convenience methods for optimal tree-shaking
+export { generateCSSFromHTML } from "./utilities/convenienceMethods.js";
+export { generateCSSFromClasses } from "./utilities/convenienceMethods.js";
+export { validateClassNames } from "./utilities/convenienceMethods.js";
+export { validateSingleClass } from "./utilities/convenienceMethods.js";
+export { getValidationStats } from "./utilities/convenienceMethods.js";
 
-export {
-  processClassInput,
-  analyzeClassArray,
-  suggestOptimizations,
-} from "./classProcessor.js";
+// ============================================================================
+// VALIDATION MODULES - For advanced usage
+// ============================================================================
 
-// Error handling
-export {
-  createErrorResponse,
-  handleValidationError,
-  handleParsingError,
-  handleSecurityError,
-  handleGenerationError,
-  handleInputError,
-  handleRateLimitError,
-  withErrorHandling,
-  normalizeResponse,
-  isSuccessResponse,
-  extractError,
-} from "./errorHandler.js";
+export { validateGenerateInput } from "./validators/inputValidator.js";
+export { validateClassesInput } from "./validators/inputValidator.js";
+export { validateHTMLInput } from "./validators/inputValidator.js";
+export { performSecurityValidation } from "./validators/securityValidator.js";
+
+// ============================================================================
+// PROCESSING MODULES - For custom workflows
+// ============================================================================
+
+export { processClassesInput } from "./processors/classCollector.js";
+export { collectAllClasses } from "./processors/classCollector.js";
+export { processHTMLInput } from "./processors/htmlProcessor.js";
+export { processClassInput } from "./processors/classProcessor.js";
+
+// ============================================================================
+// ENGINE & ORCHESTRATION - For advanced integrations
+// ============================================================================
+
+export { createEngine } from "./core/createEngine.js";
+export { generateCSSFromValidatedClasses } from "./core/cssOrchestrator.js";
+export { compileFinalResult } from "./core/cssOrchestrator.js";
+
+// ============================================================================
+// ERROR HANDLING - For robust error management
+// ============================================================================
+
+export { createErrorResponse } from "./utilities/errorHandler.js";
+export { handleValidationError } from "./utilities/errorHandler.js";
+export { handleParsingError } from "./utilities/errorHandler.js";
+export { withErrorHandling } from "./utilities/errorHandler.js";
 
 /**
  * Create a ZyraCSS API instance with custom configuration

@@ -69,51 +69,6 @@ export function kebabToCamel(str) {
 }
 
 /**
- * Truncate string with ellipsis
- * @param {string} str - String to truncate
- * @param {number} maxLength - Maximum length
- * @param {string} suffix - Suffix to add (default: '...')
- * @returns {string} Truncated string
- */
-export function truncate(str, maxLength, suffix = "...") {
-  if (typeof str !== "string") {
-    return "";
-  }
-
-  if (str.length <= maxLength) {
-    return str;
-  }
-
-  return str.slice(0, maxLength - suffix.length) + suffix;
-}
-
-/**
- * Count occurrences of substring
- * @param {string} str - String to search in
- * @param {string} substr - Substring to count
- * @returns {number} Number of occurrences
- */
-export function countOccurrences(str, substr) {
-  if (
-    typeof str !== "string" ||
-    typeof substr !== "string" ||
-    substr.length === 0
-  ) {
-    return 0;
-  }
-
-  let count = 0;
-  let index = 0;
-
-  while ((index = str.indexOf(substr, index)) !== -1) {
-    count++;
-    index += substr.length;
-  }
-
-  return count;
-}
-
-/**
  * Check if string contains only specific characters
  * @param {string} str - String to check
  * @param {RegExp|string} allowedPattern - Allowed character pattern
@@ -147,57 +102,10 @@ export function normalizeWhitespace(str) {
 }
 
 /**
- * Extract words from string (alphanumeric + hyphens)
- * @param {string} str - String to extract words from
- * @returns {Array<string>} Array of words
- */
-export function extractWords(str) {
-  if (typeof str !== "string") {
-    return [];
-  }
-
-  const matches = str.match(/[a-zA-Z0-9-]+/g);
-  return matches || [];
-}
-
-/**
  * Check if string is empty or contains only whitespace
  * @param {string} str - String to check
  * @returns {boolean} True if empty or whitespace only
  */
 export function isBlank(str) {
   return typeof str !== "string" || str.trim().length === 0;
-}
-
-/**
- * Pad string to specified length
- * @param {string} str - String to pad
- * @param {number} length - Target length
- * @param {string} padChar - Character to pad with
- * @param {string} direction - 'left', 'right', or 'both'
- * @returns {string} Padded string
- */
-export function padString(str, length, padChar = " ", direction = "right") {
-  if (typeof str !== "string") {
-    str = String(str);
-  }
-
-  if (str.length >= length) {
-    return str;
-  }
-
-  const padLength = length - str.length;
-  const padding = padChar.repeat(Math.ceil(padLength / padChar.length));
-
-  switch (direction) {
-    case "left":
-      return (padding + str).slice(-length);
-    case "both":
-      const leftPad = Math.floor(padLength / 2);
-      const rightPad = padLength - leftPad;
-      return padding.slice(0, leftPad) + str + padding.slice(0, rightPad);
-    case "right":
-    default:
-      return (str + padding).slice(0, length);
-  }
 }

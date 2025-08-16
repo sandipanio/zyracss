@@ -34,7 +34,7 @@ export const DANGEROUS_PATTERNS = {
   css_behavior: {
     regex: /behavior\s*:/i,
     description: "CSS behavior property that can load external scripts",
-    riskLevel: "high",
+    riskLevel: "critical", // Upgraded to critical
     examples: ["behavior: url(evil.htc)"],
   },
 
@@ -44,6 +44,37 @@ export const DANGEROUS_PATTERNS = {
       "CSS binding property (Mozilla-specific) that can execute code",
     riskLevel: "high",
     examples: ["binding: url(xbl.xml#myBinding)"],
+  },
+
+  // New patterns for encoded attacks
+  encoded_expression: {
+    regex:
+      /\\6[5e]\\7[8x]\\7[0p]\\7[2r]\\6[5e]\\7[3s]\\7[3s]\\6[9i]\\6[fo]\\6[en]/i,
+    description: "Hex-encoded CSS expression that can execute code",
+    riskLevel: "critical",
+    examples: ["\\65\\78\\70\\72\\65\\73\\73\\69\\6F\\6E"],
+  },
+
+  encoded_javascript: {
+    regex:
+      /\\6[aj]\\6[aj]\\7[6v]\\6[aj]\\7[3s]\\6[3c]\\7[2r]\\6[9i]\\7[0p]\\7[4t]/i,
+    description: "Hex-encoded JavaScript URL scheme",
+    riskLevel: "critical",
+    examples: ["\\6a\\61\\76\\61\\73\\63\\72\\69\\70\\74"],
+  },
+
+  unicode_script: {
+    regex: /\\3[cf]\\7[3s]\\6[3c]\\7[2r]\\6[9i]\\7[0p]\\7[4t]\\3[ef]/i,
+    description: "Unicode-encoded script tags",
+    riskLevel: "critical",
+    examples: ["\\3c\\73\\63\\72\\69\\70\\74\\3e"],
+  },
+
+  behavior_property: {
+    regex: /behavior\s*-\s*\[/i,
+    description: "CSS behavior property in bracket syntax",
+    riskLevel: "critical",
+    examples: ["behavior-[url(evil.htc)]"],
   },
 
   css_import: {
@@ -93,6 +124,14 @@ export const DANGEROUS_PATTERNS = {
     description: "CSS calc() function with potential code injection",
     riskLevel: "high",
     examples: ["calc(expression(alert(1)))", "calc(javascript:void(0))"],
+  },
+
+  // Potential ReDoS patterns
+  suspicious_repetition: {
+    regex: /^([a-z])\1{20,}[^a-z]/i,
+    description: "Suspicious repetitive patterns that could cause ReDoS",
+    riskLevel: "high",
+    examples: ["aaaaaaaaaaaaaaaaaaaaaaaaaaX"],
   },
 };
 

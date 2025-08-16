@@ -4,40 +4,51 @@
  */
 
 import { getValidationPatterns } from "./patternValidator.js";
-import { isSafeValue } from "../security/index.js";
+import { isSafeInput } from "../security/index.js";
 import {
   getPropertyType,
   isValidUnitForPropertyType,
 } from "../maps/propertyTypes.js";
+import {
+  isCSSLength,
+  isCSSColor,
+  normalizeCSSValue,
+  PROCESSING_CONSTANTS,
+} from "../utils/index.js";
 
 /**
  * Property-specific validation rules
  */
 const PROPERTY_VALIDATION_RULES = {
   // Length properties
-  padding: { type: "length", min: 0, allowNegative: false, allowCalc: true },
+  padding: {
+    type: "length",
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
+    allowNegative: false,
+    allowCalc: true,
+  },
   margin: { type: "length", min: null, allowNegative: true, allowCalc: true },
   width: {
     type: "length",
-    min: 0,
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
     allowNegative: false,
     allowKeywords: ["auto", "min-content", "max-content", "fit-content"],
   },
   height: {
     type: "length",
-    min: 0,
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
     allowNegative: false,
     allowKeywords: ["auto", "min-content", "max-content", "fit-content"],
   },
   "border-radius": {
     type: "length",
-    min: 0,
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
     allowNegative: false,
     allowPercentage: true,
   },
   "font-size": {
     type: "length",
-    min: 0,
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
     allowNegative: false,
     allowKeywords: [
       "xx-small",
@@ -51,7 +62,7 @@ const PROPERTY_VALIDATION_RULES = {
   },
   "line-height": {
     type: "length-or-number",
-    min: 0,
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
     allowNegative: false,
     allowUnitless: true,
   },
@@ -68,10 +79,23 @@ const PROPERTY_VALIDATION_RULES = {
   },
 
   // Number properties
-  opacity: { type: "number", min: 0, max: 1, allowPercentage: true },
+  opacity: {
+    type: "number",
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
+    max: PROCESSING_CONSTANTS.OPACITY_MAX,
+    allowPercentage: true,
+  },
   "z-index": { type: "integer", allowKeywords: ["auto"] },
-  "flex-grow": { type: "number", min: 0, allowNegative: false },
-  "flex-shrink": { type: "number", min: 0, allowNegative: false },
+  "flex-grow": {
+    type: "number",
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
+    allowNegative: false,
+  },
+  "flex-shrink": {
+    type: "number",
+    min: PROCESSING_CONSTANTS.MIN_ZERO,
+    allowNegative: false,
+  },
 
   // Keyword properties
   display: {
@@ -99,7 +123,10 @@ const PROPERTY_VALIDATION_RULES = {
   "font-weight": {
     type: "keyword-or-number",
     values: ["normal", "bold", "bolder", "lighter"],
-    numberRange: [1, 1000],
+    numberRange: [
+      PROCESSING_CONSTANTS.FONT_WEIGHT_MIN,
+      PROCESSING_CONSTANTS.FONT_WEIGHT_MAX,
+    ],
   },
 
   // Complex properties
@@ -138,7 +165,7 @@ export function validateValue(value, property, options = {}) {
   }
 
   // Security check first
-  if (!isSafeValue(value)) {
+  if (!isSafeInput(value)) {
     return createValidationResult(
       false,
       "Value contains unsafe patterns",
@@ -146,14 +173,17 @@ export function validateValue(value, property, options = {}) {
     );
   }
 
+  // Normalize the value using utility
+  const normalizedValue = normalizeCSSValue(value);
+
   // Handle CSS custom properties
-  if (allowCustomProperties && value.startsWith("var(")) {
-    return validateCustomProperty(value, strict);
+  if (allowCustomProperties && normalizedValue.startsWith("var(")) {
+    return validateCustomProperty(normalizedValue, strict);
   }
 
   // Handle CSS global keywords
-  if (isGlobalKeyword(value)) {
-    return createValidationResult(true, null, value, {
+  if (isGlobalKeyword(normalizedValue)) {
+    return createValidationResult(true, null, normalizedValue, {
       type: "global-keyword",
     });
   }
@@ -162,40 +192,55 @@ export function validateValue(value, property, options = {}) {
   const rules = getPropertyRules(property);
   if (!rules) {
     // Unknown property - use fallback validation
-    return validateUnknownProperty(value, strict);
+    return validateUnknownProperty(normalizedValue, strict);
+  }
+
+  // Enhanced validation using utilities for common types
+  if (rules.type === "color" && isCSSColor(normalizedValue)) {
+    return createValidationResult(true, null, normalizedValue, {
+      type: "color",
+      utilityValidated: true,
+    });
+  }
+
+  if (rules.type === "length" && isCSSLength(normalizedValue)) {
+    return createValidationResult(true, null, normalizedValue, {
+      type: "length",
+      utilityValidated: true,
+    });
   }
 
   // Validate based on property type
   switch (rules.type) {
     case "length":
-      return validateLengthValue(value, rules, strict);
+      return validateLengthValue(normalizedValue, rules, strict);
 
     case "length-or-number":
-      return validateLengthOrNumber(value, rules, strict);
+      return validateLengthOrNumber(normalizedValue, rules, strict);
 
     case "color":
-      return validateColorValue(value, rules, strict);
+      return validateColorValue(normalizedValue, rules, strict);
 
     case "number":
-      return validateNumberValue(value, rules, strict);
+      return validateNumberValue(normalizedValue, rules, strict);
 
     case "integer":
-      return validateIntegerValue(value, rules, strict);
+      return validateIntegerValue(normalizedValue, rules, strict);
 
     case "keyword":
-      return validateKeywordValue(value, rules, strict);
+      return validateKeywordValue(normalizedValue, rules, strict);
 
     case "keyword-or-number":
-      return validateKeywordOrNumber(value, rules, strict);
+      return validateKeywordOrNumber(normalizedValue, rules, strict);
 
     case "function":
-      return validateFunctionValue(value, rules, strict);
+      return validateFunctionValue(normalizedValue, rules, strict);
 
     case "complex":
-      return validateComplexValue(value, rules, strict);
+      return validateComplexValue(normalizedValue, rules, strict);
 
     default:
-      return validateFallbackValue(value, strict);
+      return validateFallbackValue(normalizedValue, strict);
   }
 }
 
@@ -428,10 +473,13 @@ function validateRGBColor(value, strict = false) {
   // Validate RGB values (0-255)
   const rgb = [r, g, b].map(Number);
   for (const channel of rgb) {
-    if (channel < 0 || channel > 255) {
+    if (
+      channel < PROCESSING_CONSTANTS.RGB_MIN ||
+      channel > PROCESSING_CONSTANTS.RGB_MAX
+    ) {
       return createValidationResult(
         false,
-        `RGB channel value ${channel} out of range (0-255)`,
+        `RGB channel value ${channel} out of range (${PROCESSING_CONSTANTS.RGB_MIN}-${PROCESSING_CONSTANTS.RGB_MAX})`,
         value
       );
     }
@@ -481,10 +529,13 @@ function validateHSLColor(value, strict = false) {
 
   // Validate hue (0-360)
   const hue = Number(h);
-  if (hue < 0 || hue > 360) {
+  if (
+    hue < PROCESSING_CONSTANTS.HSL_HUE_MIN ||
+    hue > PROCESSING_CONSTANTS.HSL_HUE_MAX
+  ) {
     return createValidationResult(
       false,
-      `Hue value ${hue} out of range (0-360)`,
+      `Hue value ${hue} out of range (${PROCESSING_CONSTANTS.HSL_HUE_MIN}-${PROCESSING_CONSTANTS.HSL_HUE_MAX})`,
       value
     );
   }
@@ -493,18 +544,24 @@ function validateHSLColor(value, strict = false) {
   const saturation = Number(s);
   const lightness = Number(l);
 
-  if (saturation < 0 || saturation > 100) {
+  if (
+    saturation < PROCESSING_CONSTANTS.HSL_PERCENTAGE_MIN ||
+    saturation > PROCESSING_CONSTANTS.HSL_PERCENTAGE_MAX
+  ) {
     return createValidationResult(
       false,
-      `Saturation value ${saturation}% out of range (0-100%)`,
+      `Saturation value ${saturation}% out of range (${PROCESSING_CONSTANTS.HSL_PERCENTAGE_MIN}-${PROCESSING_CONSTANTS.HSL_PERCENTAGE_MAX}%)`,
       value
     );
   }
 
-  if (lightness < 0 || lightness > 100) {
+  if (
+    lightness < PROCESSING_CONSTANTS.HSL_PERCENTAGE_MIN ||
+    lightness > PROCESSING_CONSTANTS.HSL_PERCENTAGE_MAX
+  ) {
     return createValidationResult(
       false,
-      `Lightness value ${lightness}% out of range (0-100%)`,
+      `Lightness value ${lightness}% out of range (${PROCESSING_CONSTANTS.HSL_PERCENTAGE_MIN}-${PROCESSING_CONSTANTS.HSL_PERCENTAGE_MAX}%)`,
       value
     );
   }
@@ -512,10 +569,13 @@ function validateHSLColor(value, strict = false) {
   // Validate alpha value (0-1)
   if (a !== undefined) {
     const alpha = Number(a);
-    if (alpha < 0 || alpha > 1) {
+    if (
+      alpha < PROCESSING_CONSTANTS.ALPHA_MIN ||
+      alpha > PROCESSING_CONSTANTS.ALPHA_MAX
+    ) {
       return createValidationResult(
         false,
-        `Alpha value ${alpha} out of range (0-1)`,
+        `Alpha value ${alpha} out of range (${PROCESSING_CONSTANTS.ALPHA_MIN}-${PROCESSING_CONSTANTS.ALPHA_MAX})`,
         value
       );
     }
@@ -1195,16 +1255,4 @@ export function isValidCSSFunction(value) {
     (result.metadata.type === "function" ||
       result.metadata.type === "calc-function")
   );
-}
-
-/**
- * Check if value is safe (wrapper for security check)
- * @param {string} value - Value to check
- * @returns {boolean} True if safe
- */
-export function isSafeValue(value) {
-  // This should import from security module
-  // For now, basic check
-  const dangerousPatterns = /javascript:|data:|expression\(/i;
-  return !dangerousPatterns.test(value);
 }

@@ -3,7 +3,7 @@
  */
 
 import { sanitizeInputArray } from "../security/index.js";
-import { now } from "./index.js";
+import { now } from "./essential.js";
 
 /**
  * Unified input processing for all API endpoints
@@ -200,7 +200,6 @@ export function processClassArray(classes, options = {}) {
 function analyzeClassPatterns(classes) {
   const patterns = {
     bracket: 0, // p-[24px]
-    shorthand: 0, // p-24px
     simple: 0, // text-center
     unknown: 0, // unrecognized
   };
@@ -210,8 +209,6 @@ function analyzeClassPatterns(classes) {
   for (const className of classes) {
     if (className.includes("[") && className.includes("]")) {
       patterns.bracket++;
-    } else if (className.includes("-") && /\d/.test(className)) {
-      patterns.shorthand++;
     } else if (/^[a-zA-Z-]+$/.test(className)) {
       patterns.simple++;
     } else {

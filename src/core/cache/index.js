@@ -1,21 +1,30 @@
 /**
  * Cache System - Main Index with Clean Exports
- * Provides multi-layer caching for ZyraCSS performance optimization
+ * Provides multi-layer caching for ZyraCSS performance optimization with hot path memoization
  */
 
 import { createHash } from "crypto";
-import { now } from "../utils/index.js";
+import { now } from "../utils/essential.js";
+import { CACHE_CONSTANTS } from "../utils/constants.js";
+import {
+  globalKeyGenerator,
+  getMemoizedParseKey,
+  getMemoizedGenerationKey,
+  getMemoizedRuleKey,
+  getMemoizedHash,
+  getKeyMemoizationStats,
+} from "./keyMemoization.js";
 
 // ============================================================================
 // CACHE CONFIGURATION
 // ============================================================================
 
 const CACHE_CONFIG = {
-  maxParseCache: 5000,
-  maxGenerationCache: 1000,
-  maxRuleCache: 10000,
-  ttl: 1000 * 60 * 60, // 1 hour default TTL
-  optimizeInterval: 1000 * 60 * 30, // 30 minutes
+  maxParseCache: CACHE_CONSTANTS.MAX_PARSE_CACHE,
+  maxGenerationCache: CACHE_CONSTANTS.MAX_GENERATION_CACHE,
+  maxRuleCache: CACHE_CONSTANTS.MAX_RULE_CACHE,
+  ttl: CACHE_CONSTANTS.TTL_DEFAULT,
+  optimizeInterval: CACHE_CONSTANTS.TTL_THIRTY_MINUTES,
 };
 
 // ============================================================================
@@ -23,25 +32,38 @@ const CACHE_CONFIG = {
 // ============================================================================
 
 class LRUCache {
-  constructor(maxSize = 1000, ttl = 1000 * 60 * 60) {
+  constructor(
+    maxSize = CACHE_CONSTANTS.DEFAULT_CACHE_SIZE,
+    ttl = CACHE_CONSTANTS.TTL_DEFAULT
+  ) {
     this.maxSize = maxSize;
     this.ttl = ttl;
     this.cache = new Map();
+    // Use Map for O(1) LRU tracking - insertion order = access order
     this.accessOrder = new Map();
-  }
 
+    // Add cache key memoization for performance
+    this.keyCache = new Map();
+    this.keyCacheMaxSize = Math.min(
+      CACHE_CONSTANTS.DEFAULT_CACHE_SIZE,
+      maxSize / CACHE_CONSTANTS.KEY_CACHE_SIZE_DIVIDER
+    );
+  }
   set(key, value) {
     const now = Date.now();
 
+    // Remove existing entry if present
     if (this.cache.has(key)) {
       this.cache.delete(key);
       this.accessOrder.delete(key);
     }
 
+    // Evict if at capacity
     if (this.cache.size >= this.maxSize) {
       this.evictLRU();
     }
 
+    // Add new entry
     this.cache.set(key, {
       value,
       timestamp: now,
@@ -63,8 +85,11 @@ class LRUCache {
       return null;
     }
 
-    // Update access tracking
+    // Update access tracking efficiently
     entry.accessCount++;
+
+    // Move to end of access order (most recently used)
+    this.accessOrder.delete(key);
     this.accessOrder.set(key, now);
 
     return entry.value;
@@ -82,6 +107,10 @@ class LRUCache {
   clear() {
     this.cache.clear();
     this.accessOrder.clear();
+    // Also clear key cache to prevent memory leaks
+    if (this.keyCache) {
+      this.keyCache.clear();
+    }
   }
 
   get size() {
@@ -91,19 +120,23 @@ class LRUCache {
   evictLRU() {
     if (this.accessOrder.size === 0) return;
 
-    let oldestKey = null;
-    let oldestTime = Infinity;
-
-    for (const [key, accessTime] of this.accessOrder) {
-      if (accessTime < oldestTime) {
-        oldestTime = accessTime;
-        oldestKey = key;
-      }
-    }
+    // O(1) eviction: first entry in Map is least recently used
+    const oldestKey = this.accessOrder.keys().next().value;
 
     if (oldestKey) {
       this.cache.delete(oldestKey);
       this.accessOrder.delete(oldestKey);
+
+      // Clean up key cache if it exists
+      if (this.keyCache && this.keyCache.size > 0) {
+        // Remove any cached keys that reference the evicted data
+        for (const [cachedKey, cachedValue] of this.keyCache) {
+          if (cachedValue === oldestKey) {
+            this.keyCache.delete(cachedKey);
+            break;
+          }
+        }
+      }
     }
   }
 
@@ -269,42 +302,22 @@ export class ZyraCacheSystem {
   }
 
   // ============================================================================
-  // CACHE KEY GENERATION
+  // OPTIMIZED CACHE KEY GENERATION WITH MEMOIZATION
   // ============================================================================
 
   createParseKey(className) {
-    return `parse:${className}`;
+    // Use memoized key generation for hot path optimization
+    return getMemoizedParseKey(className);
   }
 
   createGenerationKey(classArray, options) {
-    // Sort classes for consistent key regardless of input order
-    const sortedClasses = [...classArray].sort();
-
-    // Create stable options hash
-    const optionsHash = this.hashObject({
-      minify: options.minify || false,
-      groupSelectors: options.groupSelectors !== false,
-      includeComments: options.includeComments || false,
-    });
-
-    // Create combined hash
-    const classesHash = createHash("md5")
-      .update(sortedClasses.join("|"))
-      .digest("hex");
-
-    return `gen:${classesHash}:${optionsHash}`;
+    // Use memoized key generation for hot path optimization
+    return getMemoizedGenerationKey(classArray, options);
   }
 
   createRuleKey(selector, declarations) {
-    const declarationString =
-      typeof declarations === "string"
-        ? declarations
-        : Object.entries(declarations)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([prop, val]) => `${prop}:${val}`)
-            .join(";");
-
-    return `rule:${selector}:${this.hashString(declarationString)}`;
+    // Use memoized key generation for hot path optimization
+    return getMemoizedRuleKey(selector, declarations);
   }
 
   // ============================================================================
@@ -331,11 +344,35 @@ export class ZyraCacheSystem {
   }
 
   getStats() {
+    const keyMemoizationStats = getKeyMemoizationStats();
+
     return {
+      // Core cache stats
       ...this.stats,
       parseSize: this.parseCache.size,
       generationSize: this.generationCache.size,
       ruleSize: this.ruleCache.size,
+
+      // Nested cache objects for compatibility
+      parseCache: {
+        size: this.parseCache.size,
+        hits: this.stats.parseHits,
+        misses: this.stats.parseMisses,
+        evictions: this.stats.parseEvictions || 0,
+      },
+      generationCache: {
+        size: this.generationCache.size,
+        hits: this.stats.generationHits,
+        misses: this.stats.generationMisses,
+        evictions: this.stats.generationEvictions || 0,
+      },
+      ruleCache: {
+        size: this.ruleCache.size,
+        hits: this.stats.ruleHits,
+        misses: this.stats.ruleMisses,
+        evictions: this.stats.ruleEvictions || 0,
+      },
+
       parseHitRate:
         this.stats.parseHits /
           (this.stats.parseHits + this.stats.parseMisses) || 0,
@@ -346,6 +383,10 @@ export class ZyraCacheSystem {
         this.stats.ruleHits / (this.stats.ruleHits + this.stats.ruleMisses) ||
         0,
       totalMemoryEstimate: this.estimateMemoryUsage(),
+
+      // Memoization stats for hot path optimization
+      keyMemoization: keyMemoizationStats,
+      overallOptimizationRate: keyMemoizationStats.overallHitRate,
     };
   }
 
@@ -358,11 +399,15 @@ export class ZyraCacheSystem {
 
   optimize() {
     const now = Date.now();
-    const maxAge = 1000 * 60 * 30; // 30 minutes
+    const maxAge = CACHE_CONSTANTS.TTL_THIRTY_MINUTES;
 
+    // Optimize main caches
     [this.parseCache, this.generationCache, this.ruleCache].forEach((cache) => {
       cache.removeExpired(now - maxAge);
     });
+
+    // Optimize key memoization system
+    globalKeyGenerator.optimize();
   }
 
   setupAutoOptimization(interval) {
@@ -379,10 +424,10 @@ export class ZyraCacheSystem {
 // ============================================================================
 
 export const globalCache = new ZyraCacheSystem({
-  maxParseCache: 5000,
-  maxGenerationCache: 1000,
-  maxRuleCache: 10000,
-  ttl: 1000 * 60 * 60, // 1 hour
+  maxParseCache: CACHE_CONSTANTS.MAX_PARSE_CACHE,
+  maxGenerationCache: CACHE_CONSTANTS.MAX_GENERATION_CACHE,
+  maxRuleCache: CACHE_CONSTANTS.MAX_RULE_CACHE,
+  ttl: CACHE_CONSTANTS.TTL_DEFAULT,
 });
 
 // ============================================================================
@@ -449,3 +494,13 @@ export function withRuleCache(ruleFunction) {
 
 export { LRUCache };
 export { CACHE_CONFIG };
+
+// Export key memoization functions for external use
+export {
+  getMemoizedParseKey,
+  getMemoizedGenerationKey,
+  getMemoizedRuleKey,
+  getMemoizedHash,
+  getKeyMemoizationStats,
+  globalKeyGenerator,
+};

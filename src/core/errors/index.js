@@ -43,7 +43,9 @@ export class ZyraResult {
     }
   }
 
-  then(fn) {
+  // Remove thenable interface to avoid conflicts with async/await
+  // Use .map() and .mapError() for chaining instead
+  map(fn) {
     if (!this.success) return this;
 
     try {
@@ -54,7 +56,7 @@ export class ZyraResult {
     }
   }
 
-  catch(fn) {
+  mapError(fn) {
     if (this.success) return this;
 
     try {
@@ -64,6 +66,8 @@ export class ZyraResult {
       return ZyraResult.error(ZyraError.fromException(error));
     }
   }
+
+  // Remove catch method as well since we removed thenable interface
 
   unwrap() {
     if (!this.success) throw this.error;

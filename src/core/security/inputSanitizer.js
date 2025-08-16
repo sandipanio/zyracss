@@ -1,9 +1,10 @@
 /**
  * Input sanitization and cleaning logic
- * Handles safe cleaning of user input before processing
+ * Handles safe cleaning of user input before processing with regex timeout protection
  */
 
 import { MAX_CLASS_LENGTH, MAX_VALUE_LENGTH } from "./securityConstants.js";
+import { syncSafeRegexTest, REGEX_TIMEOUTS } from "./safeRegex.js";
 
 /**
  * Sanitize and clean input string
@@ -141,13 +142,29 @@ export function needsSanitization(input) {
     return true;
   }
 
-  // Check for control characters
-  if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(input)) {
+  // Check for control characters with safe regex
+  const controlCharTest = syncSafeRegexTest(
+    /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/,
+    input,
+    { timeout: REGEX_TIMEOUTS.FAST }
+  );
+  if (
+    controlCharTest.result ||
+    controlCharTest.error ||
+    controlCharTest.timedOut
+  ) {
     return true;
   }
 
-  // Check for excessive whitespace
-  if (/\s{2,}/.test(input)) {
+  // Check for excessive whitespace with safe regex
+  const whitespaceTest = syncSafeRegexTest(/\s{2,}/, input, {
+    timeout: REGEX_TIMEOUTS.FAST,
+  });
+  if (
+    whitespaceTest.result ||
+    whitespaceTest.error ||
+    whitespaceTest.timedOut
+  ) {
     return true;
   }
 

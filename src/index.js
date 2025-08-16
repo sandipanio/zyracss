@@ -8,22 +8,17 @@ export {
   generateCSS,
   generateCSSFromHTML,
   generateCSSFromClasses,
-} from "./api/generateCSS.js";
+} from "./api/core/generateCSS.js";
 
 // Incremental engine for real-time editing
-export { createEngine } from "./api/createEngine.js";
+export { createEngine } from "./api/core/createEngine.js";
 
 // Advanced API exports
 export {
-  generateMinifiedCSS,
-  generateCSSWithDebug,
   validateClassNames,
-  quickCSS,
-  getCSSString,
-  areValidClasses,
-  estimateCSSSize,
-  generateCSSWithProgress,
-} from "./api/convenienceMethods.js";
+  validateSingleClass,
+  getValidationStats,
+} from "./api/utilities/convenienceMethods.js";
 
 // Utility exports for advanced usage
 export { parseClasses, extractClassesFromHTML } from "./core/parser/index.js";
@@ -33,4 +28,4 @@ export { validateClasses } from "./core/validators/index.js";
 export { getVersion } from "./core/utils/version.js";
 
 // Default export for convenience
-export { generateCSS as default } from "./api/generateCSS.js";
+export { generateCSS as default } from "./api/core/generateCSS.js";

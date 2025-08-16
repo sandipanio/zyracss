@@ -6,7 +6,7 @@
 import { validateClassSyntax } from "../parser/syntaxValidator.js";
 import { sanitizeInput } from "../security/index.js";
 import { MAX_CLASSES_PER_REQUEST } from "../security/securityConstants.js";
-import { now } from "../utils/index.js";
+import { now } from "../utils/essential.js";
 
 // Use centralized batch size for consistency
 const MAX_BATCH_SIZE = 1000;

@@ -1,9 +1,10 @@
 /**
- * Dangerous pattern detection for security
- * Identifies and blocks malicious content patterns
+ * Dangerous pattern detection for security with safe regex execution
+ * Identifies and blocks malicious content patterns using timeout protection
  */
 
 import { DANGEROUS_PATTERNS } from "./securityConstants.js";
+import { syncSafeRegexTest, REGEX_TIMEOUTS } from "./safeRegex.js";
 
 /**
  * Check if input contains dangerous patterns
@@ -22,14 +23,41 @@ export function detectDangerousPatterns(input) {
   const matchedPatterns = [];
   let highestRiskLevel = "none";
 
-  // Check against all dangerous patterns
+  // Check against all dangerous patterns with safe regex execution
   for (const [patternName, patternInfo] of Object.entries(DANGEROUS_PATTERNS)) {
-    if (patternInfo.regex.test(input)) {
+    const testResult = syncSafeRegexTest(patternInfo.regex, input, {
+      timeout: REGEX_TIMEOUTS.NORMAL,
+      maxLength: 50000,
+    });
+
+    if (testResult.error) {
+      // Log regex error but continue processing
+      console.warn(`Regex error for pattern ${patternName}:`, testResult.error);
+      continue;
+    }
+
+    if (testResult.timedOut) {
+      // Treat timeout as potential danger
+      matchedPatterns.push({
+        name: patternName,
+        description: `${patternInfo.description} (timeout detected)`,
+        riskLevel: "critical",
+        match: "TIMEOUT_DETECTED",
+        timedOut: true,
+      });
+      highestRiskLevel = "critical";
+      continue;
+    }
+
+    if (testResult.result) {
+      // Safe match operation
+      const matchResult = input.match(patternInfo.regex);
       matchedPatterns.push({
         name: patternName,
         description: patternInfo.description,
         riskLevel: patternInfo.riskLevel,
-        match: input.match(patternInfo.regex)?.[0],
+        match: matchResult?.[0],
+        executionTime: testResult.duration,
       });
 
       // Update highest risk level
@@ -83,7 +111,17 @@ export function isSafeInput(input) {
   );
 
   for (const pattern of highPriorityPatterns) {
-    if (pattern.regex.test(input)) {
+    const testResult = syncSafeRegexTest(pattern.regex, input, {
+      timeout: REGEX_TIMEOUTS.FAST,
+      maxLength: 10000,
+    });
+
+    if (testResult.error || testResult.timedOut) {
+      // Any error or timeout for high-priority patterns means unsafe
+      return false;
+    }
+
+    if (testResult.result) {
       return false;
     }
   }
@@ -176,7 +214,7 @@ export function getAllPatternNames() {
 }
 
 /**
- * Test input against a specific pattern
+ * Test input against a specific pattern with safe execution
  * @param {string} input - Input to test
  * @param {string} patternName - Name of pattern to test against
  * @returns {boolean} True if pattern matches
@@ -187,5 +225,13 @@ export function testAgainstPattern(input, patternName) {
     return false;
   }
 
-  return pattern.regex.test(input);
+  const testResult = syncSafeRegexTest(pattern.regex, input, {
+    timeout: REGEX_TIMEOUTS.NORMAL,
+    maxLength: 10000,
+  });
+
+  // Return false for errors, timeouts, or no matches
+  return (
+    testResult.result === true && !testResult.error && !testResult.timedOut
+  );
 }

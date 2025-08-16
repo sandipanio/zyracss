@@ -1,10 +1,19 @@
 /**
  * Updated Parser with consistent error handling and caching
- * Integrates with new error handling and caching systems
+ * Integrates with new error handling and caching systems with safe regex execution
  */
 
 import { PROPERTY_MAP } from "../maps/index.js";
-import { sanitizeInput } from "../security/index.js";
+import {
+  sanitizeInput,
+  detectDangerousPatterns,
+  isSafeInput,
+} from "../security/index.js";
+import {
+  syncSafeRegexTest,
+  safeRegexMatch,
+  REGEX_TIMEOUTS,
+} from "../security/safeRegex.js";
 import { parseCSSSyntax } from "./valueParser.js";
 import { generateSelector } from "./syntaxValidator.js";
 import {
@@ -40,6 +49,24 @@ function parseClassCore(className) {
     );
   }
 
+  // Comprehensive security validation
+  const securityCheck = detectDangerousPatterns(sanitized);
+  if (securityCheck.isDangerous) {
+    const patterns = securityCheck.matchedPatterns.map(
+      (p) => `${p.name} (${p.riskLevel})`
+    );
+    const suggestions = securityCheck.matchedPatterns.flatMap((p) =>
+      p.description ? [`Avoid: ${p.description}`] : []
+    );
+    return ZyraResult.error(
+      ErrorFactory.dangerousInput(
+        className,
+        patterns,
+        suggestions.length ? suggestions : undefined
+      )
+    );
+  }
+
   // Syntax validation
   const syntaxValidation = validateClassSyntax(sanitized);
   if (!syntaxValidation.isValid) {
@@ -52,21 +79,26 @@ function parseClassCore(className) {
     );
   }
 
-  // Parse based on syntax type
-  const bracketMatch = sanitized.match(/^([a-zA-Z-]+)-\[([^\]]+)\]$/);
-  if (bracketMatch) {
-    return parseBracketSyntax(bracketMatch[1], bracketMatch[2]);
-  }
-
-  const shorthandMatch = sanitized.match(/^([a-zA-Z-]+)-([a-zA-Z0-9#.-]+)$/);
-  if (shorthandMatch) {
-    return parseShorthandSyntax(shorthandMatch[1], shorthandMatch[2]);
+  // Parse based on syntax type with safe regex - ONLY bracket syntax
+  const bracketMatchResult = safeRegexMatch(
+    /^([a-zA-Z-]+)-\[([^\]]+)\]$/,
+    sanitized,
+    REGEX_TIMEOUTS.FAST
+  );
+  if (
+    bracketMatchResult.matches &&
+    !bracketMatchResult.error &&
+    !bracketMatchResult.timedOut
+  ) {
+    return parseBracketSyntax(
+      bracketMatchResult.matches[1],
+      bracketMatchResult.matches[2]
+    );
   }
 
   return ZyraResult.error(
     ErrorFactory.invalidClassSyntax(sanitized, "Unknown syntax pattern", [
       "Use bracket syntax: property-[value]",
-      "Use shorthand syntax: property-value",
     ])
   );
 }
@@ -83,10 +115,17 @@ function validateClassSyntax(className) {
     );
   }
 
-  // Enhanced pattern to support both bracket and shorthand syntax
-  const validPattern = /^[a-zA-Z][a-zA-Z0-9-]*(?:-\[[^\]]+\]|-[^ \t"'<>]+)?$/;
+  // Enhanced pattern to support ONLY bracket syntax
+  const validPattern = /^[a-zA-Z][a-zA-Z0-9-]*-\[[^\]]+\]$/;
 
-  if (!validPattern.test(className)) {
+  const validPatternResult = syncSafeRegexTest(validPattern, className, {
+    timeout: REGEX_TIMEOUTS.FAST,
+  });
+  if (
+    !validPatternResult.result ||
+    validPatternResult.error ||
+    validPatternResult.timedOut
+  ) {
     const suggestions = [];
 
     // Specific error analysis
@@ -99,7 +138,11 @@ function validateClassSyntax(className) {
     if (!className.includes("[") && className.includes("]")) {
       suggestions.push("Open bracket with [");
     }
-    if (/^[0-9]/.test(className)) {
+
+    const startsWithNumberResult = syncSafeRegexTest(/^[0-9]/, className, {
+      timeout: REGEX_TIMEOUTS.FAST,
+    });
+    if (startsWithNumberResult.result && !startsWithNumberResult.error) {
       suggestions.push("Class names cannot start with numbers");
     }
 
@@ -162,67 +205,6 @@ function parseBracketSyntax(prefix, value) {
   };
 
   return ZyraResult.success(parsedClass);
-}
-
-/**
- * Parse shorthand syntax with enhanced error handling
- * @param {string} prefix - Property prefix
- * @param {string} value - CSS value
- * @returns {ZyraResult} Parse result
- */
-function parseShorthandSyntax(prefix, value) {
-  // Property resolution
-  const property = PROPERTY_MAP.get(prefix);
-  if (!property) {
-    const availableProperties = getAvailableProperties(prefix);
-    return ZyraResult.error(
-      ErrorFactory.propertyNotSupported(prefix, availableProperties)
-    );
-  }
-
-  // Basic value validation for shorthand
-  if (!isValidShorthandValue(value)) {
-    return ZyraResult.error(
-      ErrorFactory.invalidCSSValue(
-        property,
-        value,
-        "Invalid shorthand value format",
-        [
-          "Use simple values without spaces",
-          "Complex values need bracket syntax",
-        ]
-      )
-    );
-  }
-
-  // Create parsed class object
-  const parsedClass = {
-    className: `${prefix}-${value}`,
-    prefix,
-    property,
-    value,
-    rawValue: value,
-    values: [value],
-    syntax: "shorthand",
-    selector: generateSelector(`${prefix}-${value}`),
-    isFunction: false,
-    metadata: {
-      parseTimestamp: Date.now(),
-      fromCache: false,
-    },
-  };
-
-  return ZyraResult.success(parsedClass);
-}
-
-/**
- * Validate shorthand CSS value
- * @param {string} value - Value to validate
- * @returns {boolean} True if valid shorthand value
- */
-function isValidShorthandValue(value) {
-  // Shorthand values should be simple (no spaces, quotes, or complex syntax)
-  return /^[a-zA-Z0-9#.%-]+$/.test(value);
 }
 
 /**

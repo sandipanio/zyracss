@@ -2,6 +2,10 @@
  * Border utility mappings for ZyraCSS
  */
 export const BORDERS_MAP = new Map([
+  // Border shorthand
+  ["border", "border"],
+  ["b", "border"],
+
   // Border width
   ["border-w", "border-width"],
   ["border-width", "border-width"],
@@ -9,6 +13,10 @@ export const BORDERS_MAP = new Map([
   ["border-r-w", "border-right-width"],
   ["border-b-w", "border-bottom-width"],
   ["border-l-w", "border-left-width"],
+
+  // Border color
+  ["border-color", "border-color"],
+  ["border-c", "border-color"],
 
   // Border style
   ["border-style", "border-style"],

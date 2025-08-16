@@ -23,6 +23,9 @@ export const TYPOGRAPHY_MAP = new Map([
   // Font style (no short prefix)
   ["font-style", "font-style"],
 
+  // Content property
+  ["content", "content"],
+
   // Line height
   ["line-height", "line-height"],
   ["lh", "line-height"],

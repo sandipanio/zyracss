@@ -1,12 +1,13 @@
 /**
  * Syntax validation and CSS selector generation
- * Handles class name validation and CSS selector escaping
+ * Handles class name validation and CSS selector escaping with safe regex execution
  */
 
 import { escapeCSSSelector } from "../utils/cssUtils.js";
+import { syncSafeRegexTest, REGEX_TIMEOUTS } from "../security/safeRegex.js";
 
 /**
- * Validate class syntax - supports both bracket and shorthand syntax
+ * Validate class syntax - supports both bracket and shorthand syntax with timeout protection
  * Examples: p-[24px], bg-[#111], p-24px, w-100%, bg-red
  * @param {string} className - Class name to validate
  * @returns {boolean} True if valid syntax
@@ -24,7 +25,12 @@ export function validateClassSyntax(className) {
   //   - Shorthand syntax: -value where value doesn't contain spaces, quotes, or angle brackets
   const validPattern = /^[a-zA-Z][a-zA-Z0-9-]*(?:-\[[^\]]+\]|-[^ \t"'<>]+)?$/;
 
-  return validPattern.test(className);
+  const testResult = syncSafeRegexTest(validPattern, className, {
+    timeout: REGEX_TIMEOUTS.FAST,
+  });
+  return (
+    testResult.result === true && !testResult.error && !testResult.timedOut
+  );
 }
 
 /**

@@ -12,6 +12,17 @@ export {
   needsSanitization,
 } from "./inputSanitizer.js";
 
+// Safe regex utilities
+export {
+  safeRegexTest,
+  syncSafeRegexTest,
+  safeRegexMatch,
+  safeRegexReplace,
+  createSafeRegex,
+  isInputLengthSafe,
+  REGEX_TIMEOUTS,
+} from "./safeRegex.js";
+
 // Pattern detection
 export {
   detectDangerousPatterns,

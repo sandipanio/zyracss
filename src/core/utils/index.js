@@ -1,7 +1,39 @@
 /**
- * Utils module - Main coordination for utility functions
- * Provides centralized access to all utility functions
+ * ZyraCSS Utilities Index
+ * Centralized access to all utility functions
  */
+
+/**
+ * Create performance timer with portable timing
+ * @param {string} name - Timer name
+ * @returns {Object} Timer object with start/stop methods
+ */
+export function createTimer(name = "timer") {
+  let startTime = null;
+
+  return {
+    start() {
+      startTime = Date.now();
+      return this;
+    },
+
+    stop() {
+      if (startTime === null) {
+        return 0; // Return 0 instead of throwing error for robustness
+      }
+      const duration = Date.now() - startTime;
+      startTime = null;
+      return duration;
+    },
+
+    elapsed() {
+      if (startTime === null) {
+        return 0;
+      }
+      return Date.now() - startTime;
+    },
+  };
+}
 
 // CSS utilities
 export {
@@ -22,13 +54,9 @@ export {
   escapeRegExp,
   camelToKebab,
   kebabToCamel,
-  truncate,
-  countOccurrences,
   containsOnly,
   normalizeWhitespace,
-  extractWords,
   isBlank,
-  padString,
 } from "./stringUtils.js";
 
 // Constants
@@ -37,6 +65,8 @@ export {
   PROPERTY_CATEGORIES,
   DEFAULT_CONFIG,
   PERFORMANCE_THRESHOLDS,
+  CACHE_CONSTANTS,
+  PROCESSING_CONSTANTS,
   FILE_PATTERNS,
   VALUE_TYPES,
   CSS_KEYWORDS,
@@ -76,66 +106,4 @@ export function getVersion() {
  */
 export function isFeatureEnabled(feature) {
   return FEATURE_FLAGS[feature] === true;
-}
-
-/**
- * Create performance timer with portable timing
- * @param {string} name - Timer name
- * @returns {Object} Timer object with start/stop methods
- */
-export function createTimer(name = "timer") {
-  let startTime = null;
-
-  return {
-    start() {
-      startTime = now();
-    },
-
-    stop() {
-      if (startTime === null) {
-        return 0;
-      }
-
-      const elapsed = now() - startTime;
-      startTime = null;
-      return Math.round(elapsed * 100) / 100; // Round to 2 decimal places
-    },
-
-    isRunning() {
-      return startTime !== null;
-    },
-  };
-}
-
-/**
- * Deep merge objects
- * @param {Object} target - Target object
- * @param {...Object} sources - Source objects to merge
- * @returns {Object} Merged object
- */
-export function deepMerge(target, ...sources) {
-  if (!sources.length) return target;
-  const source = sources.shift();
-
-  if (isObject(target) && isObject(source)) {
-    for (const key in source) {
-      if (isObject(source[key])) {
-        if (!target[key]) Object.assign(target, { [key]: {} });
-        deepMerge(target[key], source[key]);
-      } else {
-        Object.assign(target, { [key]: source[key] });
-      }
-    }
-  }
-
-  return deepMerge(target, ...sources);
-}
-
-/**
- * Check if value is an object
- * @param {any} item - Item to check
- * @returns {boolean} True if item is an object
- */
-function isObject(item) {
-  return item && typeof item === "object" && !Array.isArray(item);
 }
