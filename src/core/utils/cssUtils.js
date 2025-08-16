@@ -13,74 +13,10 @@ export function escapeCSSSelector(className) {
     return "";
   }
 
-  // Escape special CSS characters
-  return className.replace(/[\[\]:,()]/g, "\\$&");
-}
-
-/**
- * Normalize CSS property name
- * @param {string} property - CSS property name
- * @returns {string} Normalized property name
- */
-export function normalizePropertyName(property) {
-  if (typeof property !== "string") {
-    return "";
-  }
-
-  return property.toLowerCase().trim();
-}
-
-/**
- * Check if a string is a valid CSS identifier
- * @param {string} identifier - String to check
- * @returns {boolean} True if valid CSS identifier
- */
-export function isValidCSSIdentifier(identifier) {
-  if (typeof identifier !== "string" || identifier.length === 0) {
-    return false;
-  }
-
-  // CSS identifier pattern: starts with letter, underscore, or hyphen
-  // followed by letters, numbers, hyphens, or underscores
-  return /^[a-zA-Z_-][a-zA-Z0-9_-]*$/.test(identifier);
-}
-
-/**
- * Parse CSS shorthand value into individual components
- * @param {string} value - CSS shorthand value
- * @param {number} expectedParts - Expected number of parts (1-4)
- * @returns {Array<string>} Array of individual values
- */
-export function parseShorthandValue(value, expectedParts = 4) {
-  if (typeof value !== "string") {
-    return [];
-  }
-
-  const parts = value.trim().split(/\s+/);
-
-  // CSS shorthand expansion rules
-  switch (parts.length) {
-    case 1:
-      // Single value applies to all sides
-      return new Array(expectedParts).fill(parts[0]);
-
-    case 2:
-      // Two values: first=top/bottom, second=left/right
-      return expectedParts === 4
-        ? [parts[0], parts[1], parts[0], parts[1]]
-        : parts.slice(0, expectedParts);
-
-    case 3:
-      // Three values: top, left/right, bottom
-      return expectedParts === 4
-        ? [parts[0], parts[1], parts[2], parts[1]]
-        : parts.slice(0, expectedParts);
-
-    case 4:
-    default:
-      // Four or more values: use first expectedParts
-      return parts.slice(0, expectedParts);
-  }
+  // Escape special CSS characters according to CSS specification
+  // All special characters that have meaning in CSS selectors must be escaped
+  // This includes: [ ] : , ( ) . # + > ~ space and others
+  return className.replace(/[\[\]:,().#\s+>~]/g, "\\$&");
 }
 
 /**

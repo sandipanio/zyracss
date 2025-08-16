@@ -107,16 +107,28 @@ export function validateClassesInput(classes) {
 }
 
 /**
- * Validate HTML string input
- * @param {string} html - HTML string to validate
+ * Validate HTML input (string or array of strings)
+ * @param {string|Array<string>} html - HTML to validate
  * @returns {ZyraResult} Validation result
  */
 export function validateHTMLInput(html) {
-  if (typeof html !== "string") {
-    return ZyraResult.error(
-      ErrorFactory.invalidInput(html, "HTML must be a string")
-    );
+  // Single HTML string
+  if (typeof html === "string") {
+    return ZyraResult.success(html);
   }
 
-  return ZyraResult.success(html);
+  // Array of HTML strings
+  if (Array.isArray(html)) {
+    const validStrings = html.every((item) => typeof item === "string");
+    if (!validStrings) {
+      return ZyraResult.error(
+        ErrorFactory.invalidInput(html, "HTML array must contain only strings")
+      );
+    }
+    return ZyraResult.success(html);
+  }
+
+  return ZyraResult.error(
+    ErrorFactory.invalidInput(html, "HTML must be a string or array of strings")
+  );
 }

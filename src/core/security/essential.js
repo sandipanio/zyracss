@@ -5,6 +5,7 @@
 
 // Safe regex utilities - core security functionality
 export {
+  safeRegexTest,
   syncSafeRegexTest,
   safeRegexMatch,
   safeRegexReplace,

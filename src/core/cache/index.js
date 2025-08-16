@@ -412,9 +412,19 @@ export class ZyraCacheSystem {
 
   setupAutoOptimization(interval) {
     if (typeof setInterval !== "undefined") {
-      setInterval(() => {
+      this.optimizationInterval = setInterval(() => {
         this.optimize();
       }, interval);
+    }
+  }
+
+  /**
+   * Clean up timers to allow process to exit cleanly
+   */
+  cleanup() {
+    if (this.optimizationInterval) {
+      clearInterval(this.optimizationInterval);
+      this.optimizationInterval = null;
     }
   }
 }
@@ -429,6 +439,13 @@ export const globalCache = new ZyraCacheSystem({
   maxRuleCache: CACHE_CONSTANTS.MAX_RULE_CACHE,
   ttl: CACHE_CONSTANTS.TTL_DEFAULT,
 });
+
+/**
+ * Cleanup global cache to allow process to exit cleanly
+ */
+export function cleanupGlobalCache() {
+  globalCache.cleanup();
+}
 
 // ============================================================================
 // CACHE WRAPPER FUNCTIONS

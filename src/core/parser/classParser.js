@@ -80,20 +80,13 @@ function parseClassCore(className) {
   }
 
   // Parse based on syntax type with safe regex - ONLY bracket syntax
-  const bracketMatchResult = safeRegexMatch(
+  const bracketMatches = safeRegexMatch(
     /^([a-zA-Z-]+)-\[([^\]]+)\]$/,
     sanitized,
     REGEX_TIMEOUTS.FAST
   );
-  if (
-    bracketMatchResult.matches &&
-    !bracketMatchResult.error &&
-    !bracketMatchResult.timedOut
-  ) {
-    return parseBracketSyntax(
-      bracketMatchResult.matches[1],
-      bracketMatchResult.matches[2]
-    );
+  if (bracketMatches && bracketMatches.length >= 3) {
+    return parseBracketSyntax(bracketMatches[1], bracketMatches[2]);
   }
 
   return ZyraResult.error(
@@ -118,14 +111,11 @@ function validateClassSyntax(className) {
   // Enhanced pattern to support ONLY bracket syntax
   const validPattern = /^[a-zA-Z][a-zA-Z0-9-]*-\[[^\]]+\]$/;
 
-  const validPatternResult = syncSafeRegexTest(validPattern, className, {
+  const isValid = syncSafeRegexTest(validPattern, className, {
     timeout: REGEX_TIMEOUTS.FAST,
   });
-  if (
-    !validPatternResult.result ||
-    validPatternResult.error ||
-    validPatternResult.timedOut
-  ) {
+
+  if (!isValid) {
     const suggestions = [];
 
     // Specific error analysis
@@ -139,10 +129,10 @@ function validateClassSyntax(className) {
       suggestions.push("Open bracket with [");
     }
 
-    const startsWithNumberResult = syncSafeRegexTest(/^[0-9]/, className, {
+    const startsWithNumber = syncSafeRegexTest(/^[0-9]/, className, {
       timeout: REGEX_TIMEOUTS.FAST,
     });
-    if (startsWithNumberResult.result && !startsWithNumberResult.error) {
+    if (startsWithNumber) {
       suggestions.push("Class names cannot start with numbers");
     }
 
@@ -165,8 +155,26 @@ function validateClassSyntax(className) {
  * @returns {ZyraResult} Parse result
  */
 function parseBracketSyntax(prefix, value) {
-  // Property resolution
-  const property = PROPERTY_MAP.get(prefix);
+  // Smart property resolution for ambiguous prefixes
+  let property = PROPERTY_MAP.get(prefix);
+
+  // Special handling for 'text' prefix - can be color or font-size
+  if (prefix === "text" && !property) {
+    // Try to detect based on value pattern
+    if (isColorValue(value)) {
+      property = "color";
+    } else if (isSizeValue(value)) {
+      property = "font-size";
+    } else {
+      property = "color"; // Default to color for 'text'
+    }
+  } else if (prefix === "text" && property) {
+    // If 'text' maps to 'color' but value looks like size, use font-size
+    if (property === "color" && isSizeValue(value)) {
+      property = "font-size";
+    }
+  }
+
   if (!property) {
     const availableProperties = getAvailableProperties(prefix);
     return ZyraResult.error(
@@ -205,6 +213,36 @@ function parseBracketSyntax(prefix, value) {
   };
 
   return ZyraResult.success(parsedClass);
+}
+
+/**
+ * Check if a value looks like a color
+ * @param {string} value - CSS value to check
+ * @returns {boolean} True if value looks like a color
+ */
+function isColorValue(value) {
+  // Check for common color patterns
+  return (
+    value.startsWith("#") || // #fff, #ffffff
+    value.startsWith("rgb") || // rgb(), rgba()
+    value.startsWith("hsl") || // hsl(), hsla()
+    value.match(/^[a-z]+$/i) || // named colors like 'red', 'blue'
+    value.includes("var(--") // CSS custom properties for colors
+  );
+}
+
+/**
+ * Check if a value looks like a size/length
+ * @param {string} value - CSS value to check
+ * @returns {boolean} True if value looks like a size
+ */
+function isSizeValue(value) {
+  // Check for common size unit patterns
+  return (
+    /^\d+(\.\d+)?(px|em|rem|%|vw|vh|pt|pc|in|cm|mm|ex|ch|vmin|vmax)$/i.test(
+      value
+    ) || /^\d+(\.\d+)?$/.test(value)
+  ); // unitless numbers
 }
 
 /**
@@ -279,12 +317,3 @@ export function parseClasses(input) {
  * Cache-enabled parse function
  */
 export const parseClass = withParseCache(parseClassCore);
-
-// Re-export other parser functions
-export {
-  extractClassesFromHTML,
-  extractClassesFromHTMLArray,
-} from "./htmlExtractor.js";
-
-export { validateClassSyntax, generateSelector } from "./syntaxValidator.js";
-export { parseCSSSyntax } from "./valueParser.js";

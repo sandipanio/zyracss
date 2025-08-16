@@ -38,48 +38,25 @@ export function createTimer(name = "timer") {
 // CSS utilities
 export {
   escapeCSSSelector,
-  normalizePropertyName,
-  isValidCSSIdentifier,
-  parseShorthandValue,
   normalizeCSSValue,
   isCSSLength,
   isCSSColor,
   generateCSSRule,
 } from "./cssUtils.js";
 
-// String utilities
-export {
-  safeTrim,
-  splitByDelimiters,
-  escapeRegExp,
-  camelToKebab,
-  kebabToCamel,
-  containsOnly,
-  normalizeWhitespace,
-  isBlank,
-} from "./stringUtils.js";
-
 // Constants
 export {
   CSS_UNITS,
-  PROPERTY_CATEGORIES,
-  DEFAULT_CONFIG,
-  PERFORMANCE_THRESHOLDS,
-  CACHE_CONSTANTS,
   PROCESSING_CONSTANTS,
-  FILE_PATTERNS,
-  VALUE_TYPES,
-  CSS_KEYWORDS,
+  CACHE_CONSTANTS,
   ERROR_CODES,
-  SUCCESS_MESSAGES,
-  RESPONSE_FORMATS,
   VERSION_INFO,
   FEATURE_FLAGS,
   DEBUG_LEVELS,
 } from "./constants.js";
 
 // Helper functions
-export { createLogger, formatPerformanceStats } from "./helpers.js";
+export { createLogger } from "./helpers.js";
 
 /**
  * Portable high-resolution timer

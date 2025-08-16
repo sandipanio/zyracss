@@ -1,5 +1,8 @@
 import { Command } from "commander";
 import buildCommand from "./commands/build.js";
+import { getVersion } from "../src/core/utils/version.js";
+
+const version = getVersion();
 
 // Create a new instance of Commander CLI
 const program = new Command();
@@ -10,7 +13,7 @@ program
   .description(
     "ZyraCSS: A utility-first CSS generator that supports arbitrary values"
   )
-  .version("0.1.0"); // Version should match package.json
+  .version(version); // Version should match package.json
 
 // Register commands modularly
 // All commands live in separate files to keep CLI modular and maintainable

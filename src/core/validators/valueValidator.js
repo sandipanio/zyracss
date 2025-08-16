@@ -3,17 +3,13 @@
  * Validates CSS values against property types, units, ranges, and patterns
  */
 
-import { getValidationPatterns } from "./patternValidator.js";
 import { isSafeInput } from "../security/index.js";
-import {
-  getPropertyType,
-  isValidUnitForPropertyType,
-} from "../maps/propertyTypes.js";
 import {
   isCSSLength,
   isCSSColor,
   normalizeCSSValue,
   PROCESSING_CONSTANTS,
+  CSS_UNITS,
 } from "../utils/index.js";
 
 /**
@@ -308,45 +304,58 @@ function validateLengthValue(value, rules, strict = false) {
 
   // Parse length value
   const lengthMatch = trimmed.match(/^([+-]?\d*\.?\d+)([a-zA-Z%]+)$/);
-  if (!lengthMatch) {
-    return createValidationResult(false, "Invalid length format", value);
+  if (lengthMatch) {
+    const [, numStr, unit] = lengthMatch;
+    const numValue = parseFloat(numStr);
+
+    // Validate unit
+    if (!isValidLengthUnit(unit)) {
+      return createValidationResult(
+        false,
+        `Invalid length unit: ${unit}`,
+        value
+      );
+    }
+
+    // Check value constraints
+    if (rules.min !== null && rules.min !== undefined && numValue < rules.min) {
+      return createValidationResult(
+        false,
+        `Value ${numValue} is below minimum ${rules.min}`,
+        value
+      );
+    }
+
+    if (rules.max !== null && rules.max !== undefined && numValue > rules.max) {
+      return createValidationResult(
+        false,
+        `Value ${numValue} is above maximum ${rules.max}`,
+        value
+      );
+    }
+
+    if (!rules.allowNegative && numValue < 0) {
+      return createValidationResult(
+        false,
+        "Negative values not allowed",
+        value
+      );
+    }
+
+    return createValidationResult(true, null, value, {
+      type: "length",
+      value: numValue,
+      unit,
+      unitType: getLengthUnitType(unit),
+    });
   }
 
-  const [, numStr, unit] = lengthMatch;
-  const numValue = parseFloat(numStr);
-
-  // Validate unit
-  if (!isValidLengthUnit(unit)) {
-    return createValidationResult(false, `Invalid length unit: ${unit}`, value);
-  }
-
-  // Check value constraints
-  if (rules.min !== null && rules.min !== undefined && numValue < rules.min) {
-    return createValidationResult(
-      false,
-      `Value ${numValue} is below minimum ${rules.min}`,
-      value
-    );
-  }
-
-  if (rules.max !== null && rules.max !== undefined && numValue > rules.max) {
-    return createValidationResult(
-      false,
-      `Value ${numValue} is above maximum ${rules.max}`,
-      value
-    );
-  }
-
-  if (!rules.allowNegative && numValue < 0) {
-    return createValidationResult(false, "Negative values not allowed", value);
-  }
-
-  return createValidationResult(true, null, value, {
-    type: "length",
-    value: numValue,
-    unit,
-    unitType: getLengthUnitType(unit),
-  });
+  // If not a valid length or allowed keyword, reject
+  return createValidationResult(
+    false,
+    "Invalid value for length property",
+    value
+  );
 }
 
 /**

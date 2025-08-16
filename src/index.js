@@ -13,13 +13,6 @@ export {
 // Incremental engine for real-time editing
 export { createEngine } from "./api/core/createEngine.js";
 
-// Advanced API exports
-export {
-  validateClassNames,
-  validateSingleClass,
-  getValidationStats,
-} from "./api/utilities/convenienceMethods.js";
-
 // Utility exports for advanced usage
 export { parseClasses, extractClassesFromHTML } from "./core/parser/index.js";
 export { validateClasses } from "./core/validators/index.js";

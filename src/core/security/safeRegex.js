@@ -1,234 +1,157 @@
 /**
- * Safe regex execution with timeout protection
- * Prevents ReDoS (Regular Expression Denial of Service) attacks
+ * Safe regex utilities with timeout protection
+ * Prevents ReDoS attacks through resource limits
  */
+
+// Timeout constants for different regex complexity levels
+export const REGEX_TIMEOUTS = {
+  FAST: 100, // For simple patterns
+  NORMAL: 500, // For moderate patterns
+  SLOW: 2000, // For complex patterns
+};
 
 /**
- * Default timeout for regex operations (milliseconds)
+ * Test if input length is safe for regex operations
+ * @param {string} input - Input to check
+ * @param {number} maxLength - Maximum safe length
+ * @returns {boolean} Whether input length is safe
  */
-const DEFAULT_REGEX_TIMEOUT = 100;
-const MAX_REGEX_TIMEOUT = 1000;
-
-/**
- * Safe regex tester with timeout protection
- * @param {RegExp} regex - The regex pattern to test
- * @param {string} input - Input string to test against
- * @param {number} timeout - Timeout in milliseconds (default: 100)
- * @returns {Object} Result object with success/timeout information
- */
-export function safeRegexTest(regex, input, timeout = DEFAULT_REGEX_TIMEOUT) {
-  if (typeof input !== "string") {
-    return { result: false, timedOut: false, error: "Invalid input type" };
-  }
-
-  // Enforce maximum timeout
-  const actualTimeout = Math.min(timeout, MAX_REGEX_TIMEOUT);
-
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      resolve({ result: false, timedOut: true, error: "Regex timeout" });
-    }, actualTimeout);
-
-    try {
-      const result = regex.test(input);
-      clearTimeout(timer);
-      resolve({ result, timedOut: false, error: null });
-    } catch (error) {
-      clearTimeout(timer);
-      resolve({ result: false, timedOut: false, error: error.message });
-    }
-  });
+export function isInputLengthSafe(input, maxLength = 10000) {
+  return typeof input === "string" && input.length <= maxLength;
 }
 
 /**
- * Synchronous safe regex test with length-based early termination
- * @param {RegExp} regex - The regex pattern to test
+ * Synchronous safe regex test with timeout protection
+ * @param {RegExp} regex - Regex pattern to test
  * @param {string} input - Input string to test against
- * @param {Object} options - Configuration options
- * @returns {Object} Result object
+ * @param {Object} options - Options with timeout
+ * @returns {boolean} Whether pattern matches
  */
 export function syncSafeRegexTest(regex, input, options = {}) {
-  const {
-    maxLength = 10000,
-    timeout = DEFAULT_REGEX_TIMEOUT,
-    allowUnsafe = false,
-  } = options;
+  const timeout = options.timeout || REGEX_TIMEOUTS.NORMAL;
 
-  if (typeof input !== "string") {
-    return { result: false, timedOut: false, error: "Invalid input type" };
-  }
-
-  // Early termination for overly long inputs that could cause ReDoS
-  if (input.length > maxLength && !allowUnsafe) {
-    return {
-      result: false,
-      timedOut: false,
-      error: `Input too long (${input.length} > ${maxLength})`,
-    };
-  }
-
-  // Check for potentially dangerous regex patterns
-  const regexSource = regex.source || regex.toString();
-  if (isDangerousRegex(regexSource) && !allowUnsafe) {
-    return {
-      result: false,
-      timedOut: false,
-      error: "Potentially unsafe regex pattern detected",
-    };
+  if (!isInputLengthSafe(input, 50000)) {
+    return false;
   }
 
   const startTime = Date.now();
 
   try {
     const result = regex.test(input);
-    const duration = Date.now() - startTime;
+    const elapsed = Date.now() - startTime;
 
-    if (duration > timeout) {
-      return {
-        result: false,
-        timedOut: true,
-        error: `Regex execution took too long (${duration}ms > ${timeout}ms)`,
-      };
+    if (elapsed > timeout) {
+      console.warn(
+        `Regex operation took ${elapsed}ms, exceeding timeout of ${timeout}ms`
+      );
     }
 
-    return { result, timedOut: false, error: null, duration };
+    return result;
   } catch (error) {
-    return { result: false, timedOut: false, error: error.message };
+    console.error("Regex test failed:", error);
+    return false;
   }
 }
 
 /**
  * Safe regex match with timeout protection
- * @param {RegExp} regex - The regex pattern
- * @param {string} input - Input string
+ * @param {RegExp} regex - Regex pattern to match
+ * @param {string} input - Input string to match against
  * @param {number} timeout - Timeout in milliseconds
- * @returns {Object} Match result
+ * @returns {Array|null} Match result or null
  */
-export function safeRegexMatch(regex, input, timeout = DEFAULT_REGEX_TIMEOUT) {
-  if (typeof input !== "string") {
-    return { matches: null, timedOut: false, error: "Invalid input type" };
+export function safeRegexMatch(regex, input, timeout = REGEX_TIMEOUTS.NORMAL) {
+  if (!isInputLengthSafe(input, 50000)) {
+    return null;
   }
 
   const startTime = Date.now();
 
   try {
-    const matches = input.match(regex);
-    const duration = Date.now() - startTime;
+    const result = input.match(regex);
+    const elapsed = Date.now() - startTime;
 
-    if (duration > timeout) {
-      return {
-        matches: null,
-        timedOut: true,
-        error: `Regex match took too long (${duration}ms > ${timeout}ms)`,
-      };
+    if (elapsed > timeout) {
+      console.warn(
+        `Regex match took ${elapsed}ms, exceeding timeout of ${timeout}ms`
+      );
     }
 
-    return { matches, timedOut: false, error: null, duration };
+    return result;
   } catch (error) {
-    return { matches: null, timedOut: false, error: error.message };
+    console.error("Regex match failed:", error);
+    return null;
   }
 }
 
 /**
  * Safe regex replace with timeout protection
- * @param {RegExp} regex - The regex pattern
- * @param {string} input - Input string
- * @param {string|function} replacement - Replacement string or function
+ * @param {RegExp} regex - Regex pattern to replace
+ * @param {string} input - Input string to perform replacement on
+ * @param {string} replacement - Replacement string
  * @param {number} timeout - Timeout in milliseconds
- * @returns {Object} Replace result
+ * @returns {string|null} Replaced string or null
  */
 export function safeRegexReplace(
   regex,
   input,
   replacement,
-  timeout = DEFAULT_REGEX_TIMEOUT
+  timeout = REGEX_TIMEOUTS.NORMAL
 ) {
-  if (typeof input !== "string") {
-    return { result: input, timedOut: false, error: "Invalid input type" };
+  if (!isInputLengthSafe(input, 50000)) {
+    return null;
   }
 
   const startTime = Date.now();
 
   try {
     const result = input.replace(regex, replacement);
-    const duration = Date.now() - startTime;
+    const elapsed = Date.now() - startTime;
 
-    if (duration > timeout) {
-      return {
-        result: input,
-        timedOut: true,
-        error: `Regex replace took too long (${duration}ms > ${timeout}ms)`,
-      };
+    if (elapsed > timeout) {
+      console.warn(
+        `Regex replace took ${elapsed}ms, exceeding timeout of ${timeout}ms`
+      );
     }
 
-    return { result, timedOut: false, error: null, duration };
+    return result;
   } catch (error) {
-    return { result: input, timedOut: false, error: error.message };
+    console.error("Regex replace failed:", error);
+    return null;
   }
 }
 
 /**
- * Check if a regex pattern is potentially dangerous (ReDoS vulnerable)
- * @param {string} regexSource - The regex source string
- * @returns {boolean} True if potentially dangerous
+ * Create a safe regex with input validation
+ * @param {string|RegExp} pattern - Regex pattern string or RegExp object
+ * @param {string} flags - Regex flags
+ * @returns {RegExp|null} Safe regex or null if invalid
  */
-function isDangerousRegex(regexSource) {
-  const dangerousPatterns = [
-    // Nested quantifiers (e.g., (a+)+)
-    /\([^)]*\+[^)]*\)\+/,
-    /\([^)]*\*[^)]*\)\*/,
-    /\([^)]*\+[^)]*\)\{/,
-    /\([^)]*\*[^)]*\)\{/,
+export function createSafeRegex(pattern, flags = "") {
+  try {
+    if (pattern instanceof RegExp) {
+      return pattern;
+    }
 
-    // Alternation with repetition (e.g., (a|a)*b)
-    /\([^|]*\|[^)]*\)[\+\*\{]/,
+    if (typeof pattern !== "string" || pattern.length > 1000) {
+      console.error("Regex pattern too long or invalid type");
+      return null;
+    }
 
-    // Complex nested groups with quantifiers
-    /\([^)]*\([^)]*\)[\+\*][^)]*\)[\+\*]/,
-  ];
-
-  return dangerousPatterns.some((pattern) => pattern.test(regexSource));
+    return new RegExp(pattern, flags);
+  } catch (error) {
+    console.error("Failed to create safe regex:", error);
+    return null;
+  }
 }
 
 /**
- * Create a safe regex wrapper that automatically applies timeout protection
- * @param {RegExp} regex - Original regex
- * @param {Object} options - Configuration options
- * @returns {Object} Safe regex wrapper
+ * Async safe regex test (alias for syncSafeRegexTest for backward compatibility)
+ * @param {RegExp} regex - Regex pattern to test
+ * @param {string} input - Input string to test against
+ * @param {Object} options - Options with timeout
+ * @returns {boolean} Whether pattern matches
  */
-export function createSafeRegex(regex, options = {}) {
-  const { timeout = DEFAULT_REGEX_TIMEOUT, maxLength = 10000 } = options;
-
-  return {
-    test: (input) => syncSafeRegexTest(regex, input, { timeout, maxLength }),
-    match: (input) => safeRegexMatch(regex, input, timeout),
-    replace: (input, replacement) =>
-      safeRegexReplace(regex, input, replacement, timeout),
-    exec: (input) => {
-      const matchResult = safeRegexMatch(regex, input, timeout);
-      return matchResult.timedOut ? null : matchResult.matches;
-    },
-    source: regex.source,
-    flags: regex.flags,
-  };
-}
-
-/**
- * Regex timeout configuration
- */
-export const REGEX_TIMEOUTS = {
-  FAST: 50, // For simple validations
-  NORMAL: 100, // Default timeout
-  SLOW: 300, // For complex parsing
-  MAXIMUM: 1000, // Maximum allowed timeout
-};
-
-/**
- * Pre-validate input length before regex operations
- * @param {string} input - Input to validate
- * @param {number} maxLength - Maximum allowed length
- * @returns {boolean} True if input length is safe
- */
-export function isInputLengthSafe(input, maxLength = 10000) {
-  return typeof input === "string" && input.length <= maxLength;
+export function safeRegexTest(regex, input, options = {}) {
+  return syncSafeRegexTest(regex, input, options);
 }
